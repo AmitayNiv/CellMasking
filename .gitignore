@@ -1,0 +1,14 @@
+.idea/*
+.idea/
+*.pyc
+.vscode/*
+.vscode
+*/wandb/
+*/wandb/*
+*wandb/
+*wandb/*
+*anaconda3/
+*anaconda3/*
+*/anaconda3/
+*/anaconda3/*
+
