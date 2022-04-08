@@ -5,6 +5,20 @@ import sys
 import os
 import numpy as np
 from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
+import torch
+
+class ClassifierDataset(Dataset):
+    def __init__(self, X_data, y_data):
+        self.X_data = X_data
+        self.y_data = y_data
+        
+    def __getitem__(self, index):
+        return self.X_data[index], self.y_data[index]
+        
+    def __len__ (self):
+        return len(self.X_data)
+
 
 class Data:
     def __init__(self,main_folder_path = r"/media/data1/nivamitay/data/"  ,train_ratio=0.8,features=True):
@@ -35,7 +49,7 @@ class Data:
         data[extra] = np.nan
         data = data[self.features]
         labels = self.full_data.obs[["cell_type_l1"]]
-        labels = pd.get_dummies(labels["cell_type_l1"])
+        self.labels = pd.get_dummies(labels["cell_type_l1"])
 
         x_train,x_test,y_train,y_test = train_test_split(data,labels,test_size=train_ratio,random_state=123)
         x_validation,x_test,y_validation,y_test = train_test_split(x_test,y_test,test_size=0.5,random_state=123)
@@ -44,18 +58,21 @@ class Data:
         self.val_samples = x_validation.index
         self.test_samples = x_test.index
         
-        
-        self.x_train, self.y_train = x_train.values, y_train.values
-        self.x_validation, self.y_validation = x_validation.values, y_validation.values
-        self.x_test, self.y_test = x_test.values, y_test.values
+        self.train_dataset  = ClassifierDataset(torch.from_numpy(x_train.values).float(), torch.from_numpy(y_train.values).long())
+        self.val_dataset   = ClassifierDataset(torch.from_numpy(x_validation.values).float(), torch.from_numpy(y_validation.values).long())
+        self.test_dataset   = ClassifierDataset(torch.from_numpy(x_test.values).float(), torch.from_numpy(y_test.values).long())
 
-        print(f"Load dataset: Total {self.labels.shape[0]} samples, {self.x_train.shape[1]} features\n\
-            {len(labels.columns.values)} labels: {labels.columns.values}\n\
-        X_train:{self.x_train.shape[0]} samples||X_val:{self.x_validation.shape[0]} samples||X_test:{self.x_test.shape[0]} samples")
+        self.class_weights = 1./torch.tensor(y_train.values.sum(axis=0), dtype=torch.float) 
+        
+
+        print(f"Load dataset: Total {self.labels.shape[0]} samples, {x_train.shape[1]} features\n\
+            {len(self.labels.columns)} labels: { self.labels.columns.values}\n\
+        X_train:{x_train.shape[0]} samples||X_val:{x_validation.shape[0]} samples||X_test:{x_test.shape[0]} samples")
 
         
         print(f"Train samples:{y_train.index}")
         print(f"Val samples:{y_validation.index}")
         print(f"Test samples:{y_test.index}")
+        print(f"Class weights: {self.class_weights}")
 
 
