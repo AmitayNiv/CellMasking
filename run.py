@@ -3,12 +3,15 @@ import numpy as np
 import torch
 import wandb
 from data_loading import Data
+from train import train_classifier
+from models import Classifier
 
+CUDA_VISIBLE_DEVICES=4
 
 class arguments:
    def __init__(self):
       self.seed = 3407
-      self.cls_epochs = 50
+      self.cls_epochs = 10
       self.g_epochs=20
       self.cls_lr=0.00002
       self.g_lr = 0.5
@@ -16,7 +19,7 @@ class arguments:
       self.dropout=0
       self.optim = "SGD"
       self.batch_size = 50
-      self.train_ratio = 0.6
+      self.train_ratio = 0.7
 
 
 
@@ -33,14 +36,15 @@ def run(args):
     print(f'Using device {device}')
 
     ## Init WandB experiment
-    wandb_exp = wandb.init(project="CellAnnotation", entity="niv_a")
-    wandb_exp.name = f"Train"
-    wandb_exp.config.update(
-    dict(cls_epochs=args.cls_epochs,g_epochs= args.g_epochs,cls_lr=args.cls_lr,g_lr=args.g_lr, \
-    batch_size=args.batch_size, train_ratio=args.train_ratio, weight_decay=args.weight_decay))
+    # wandb_exp = wandb.init(project="CellAnnotation", entity="niv_a")
+    # wandb_exp.name = f"Train"
+    # wandb_exp.config.update(
+    # dict(cls_epochs=args.cls_epochs,g_epochs= args.g_epochs,cls_lr=args.cls_lr,g_lr=args.g_lr, \
+    # batch_size=args.batch_size, train_ratio=args.train_ratio, weight_decay=args.weight_decay))
 
     ##
-    
+    data = Data(train_ratio=0.7,features=True)
+    train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
 
 
 
@@ -53,5 +57,4 @@ def run(args):
 
 if __name__ == '__main__':
     args = arguments()
-    data = Data()
     run(args)

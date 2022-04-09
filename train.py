@@ -1,9 +1,13 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from models import Classifier,G_Model
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import copy
+
+from models import Classifier,G_Model
+from metrics import evaluate
+
 
 def train_classifier(args,device,data_obj,model,wandb_exp):
     
@@ -13,18 +17,18 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
 
     if model == None:
-        model = Classifier(len(data_obj.overlap ),dropout=args.dropout,number_of_classes=len(data_obj.labels.columns))
+        model = Classifier(len(data_obj.colnames),dropout=args.dropout,number_of_classes=len(data_obj.labels.columns))
         model = model.to(device)
     criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
 
     train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
-    val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=args.batch_size)
-    test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=args.batch_size)
+    val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=len(data_obj.val_dataset))
+    test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
 
 
 
-    for e in range(args.epochs):
+    for e in range(args.cls_epochs):
         model.train()
         train_loss = 0
         for X_train_batch, y_train_batch in train_loader:
@@ -46,26 +50,25 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
                 val_epoch_loss = 0
                 for X_val_batch, y_val_batch in val_loader:
                     X_val_batch, y_val_batch = X_val_batch.to(device), y_val_batch.to(device)
-        
-                    y_val_pred = model(X_val_batch)
-                                
+                    y_val_pred = model(X_val_batch)     
                     val_loss = criterion(y_val_pred, y_val_batch)
-            
                     val_epoch_loss += val_loss.item()
-################################################################################################################
-                val_score = evaluate(y_validate_, y_pred_val, predictions)
+                    val_score = evaluate(y_val_batch, y_val_pred)
 
     
                     
-            train_losses.append(train_loss/len(train_batch))
-            val_losses.append(val_loss)
+            # train_losses.append(train_loss/len(train_batch))
+            # val_losses.append(val_loss)
 
-            print("Epoch: {}/{}.. ".format(e+1, args.epochs),
-                  "Training Loss: {:.5f}.. ".format(train_loss/len(train_batch)),
-                  "Val Loss: {:.5f}.. ".format(val_loss),
-                  "Val AUC: {:.5f}.. ".format(val_score["auc"]))
-            if val_score["auc"] >best_model_auc:
-                best_model_auc = val_score["auc"]
+            print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
+                  "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
+                  "Val Loss: {:.5f}.. ".format(val_loss/len(val_loader)),
+                  "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
+                  "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
+                  "Val ACC: {:.5f}.. ".format(val_score["accuracy"]),
+                  )
+            if val_score["mauc"] >best_model_auc:
+                best_model_auc = val_score["mauc"]
                 best_model_index = e+1
                 # best_model_name = "/F_model_{:.3f}.pt".format(best_model_auc)
                 # best_model_path = current_folder+best_model_name
@@ -74,14 +77,14 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
                 best_model = copy.deepcopy(model)
             # scheduler.step(val_score["auc"])
 
-    best_model = best_model.cuda()#torch.load(best_model_path).cuda()
+    best_model = best_model.to(device)
     with torch.no_grad():
-      best_model.eval()
-      y_pred_score = best_model(X_test)
-      y_pred_score = y_pred_score.detach().cpu().numpy()
-      y_pred_test = (y_pred_score> 0.5).astype(int)
-      test_score = evaluate(y_test, y_pred_test, y_pred_score)
-      print("Classifier test results:")
-      print(test_score)
-      return best_model
+        best_model.eval()
+        for X_test_batch, y_test_batch in val_loader:
+            X_test_batch, y_test_batch = X_test_batch.to(device), y_test_batch.to(device)
+            y_pred_score = best_model(X_test_batch)
+            test_score = evaluate(y_test_batch, y_pred_score)
+            print("Classifier test results:")
+            print(test_score)
+    return best_model
 

@@ -9,7 +9,7 @@ class Classifier(nn.Module):
         self.fc2 = nn.Linear(int(D_in/2),int(D_in/4))
         self.fc3 = nn.Linear(int(D_in/4), int(D_in/8))
         self.fc4= nn.Linear(int(D_in/8), number_of_classes)
-        self.soft = nn.Softmax()
+        self.soft = nn.Softmax(dim=0)
         self.drop = nn.Dropout(p=dropout)
         self.relu = nn.LeakyReLU()#nn.ReLU()
         self.tanh = nn.Tanh()
@@ -21,7 +21,8 @@ class Classifier(nn.Module):
         # x = self.drop(x)
         x = self.selu(self.fc3(x))
         x = self.drop(x)
-        x = self.soft(self.fc4(x))
+        x = self.fc4(x)
+        # x = self.soft(x)
 
         return x
 
