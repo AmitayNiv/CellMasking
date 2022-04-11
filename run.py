@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import wandb
 from data_loading import Data
-from train import train_classifier
+from train import train_G, train_classifier
 
 
 CUDA_VISIBLE_DEVICES=4
@@ -11,13 +11,12 @@ CUDA_VISIBLE_DEVICES=4
 class arguments:
    def __init__(self):
       self.seed = 3407
-      self.cls_epochs = 50
-      self.g_epochs=20
-      self.cls_lr=0.00002
-      self.g_lr = 0.5
+      self.cls_epochs = 70
+      self.g_epochs = 20
+      self.cls_lr = 0.00002
+      self.g_lr = 0.0002
       self.weight_decay=5e-4
       self.dropout=0
-      self.optim = "SGD"
       self.batch_size = 50
       self.train_ratio = 0.7
 
@@ -45,6 +44,7 @@ def run(args):
     ##
     data = Data(train_ratio=0.7,features=True)
     cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
+    g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
 
 
 

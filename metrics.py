@@ -18,17 +18,19 @@ def evaluate(y_test, y_pred_score):
         fpr, tpr, _ = metrics.roc_curve(y_test[:,cls], y_pred_score[:,cls].detach().cpu(), pos_label=1)
         aucs.append(metrics.auc(fpr, tpr))
         auprs.append(aupr)
-    f1 = metrics.f1_score(y_test, y_pred,average='micro')
-    precision = metrics.precision_score(y_test, y_pred,average='micro')
-    recall = metrics.recall_score(y_test, y_pred,average='micro')
+    # f1 = metrics.f1_score(y_test, y_pred,average='macro')
+    # precision = metrics.precision_score(y_test, y_pred,average='macro')
+    # recall = metrics.recall_score(y_test, y_pred,average='macro')
     
     score = {}
     score['accuracy'] = accuracy
-    score['precision'] = precision
-    score['auc'] = aucs
+    # score['precision'] = precision
+    # score['auc'] = aucs
     score['mauc'] = np.mean(np.nan_to_num(aucs,nan=0.0))
-    score['f1'] = f1
-    score['aupr'] = auprs
+    score['med_auc'] = np.median(np.nan_to_num(aucs,nan=0.0))
+    # score['f1'] = f1
+    # score['aupr'] = auprs
     score['maupr'] = np.mean(np.nan_to_num(auprs,nan=0.0))
-    score['recall'] = recall
+    score['med_aupr'] = np.median(np.nan_to_num(auprs,nan=0.0))
+    # score['recall'] = recall
     return score

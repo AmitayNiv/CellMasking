@@ -49,8 +49,10 @@ class Data:
         # data[extra] = np.nan
         # data = data[self.features]
         self.colnames = data.columns
-        labels = self.full_data.obs[["cell_type_l1"]]
-        self.labels = pd.get_dummies(labels["cell_type_l1"])
+
+        cell_type_col = "cell_type_l2"
+        labels = self.full_data.obs[cell_type_col]
+        self.labels = pd.get_dummies(labels)[np.unique(labels.values)]
 
         x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=123)
         x_validation,x_test,y_validation,y_test = train_test_split(x_test,y_test,test_size=0.5,random_state=123)
@@ -67,7 +69,7 @@ class Data:
         
 
         print(f"Loading dataset:\n Total {self.labels.shape[0]} samples, {x_train.shape[1]} features\n\
-            {len(self.labels.columns)} labels: { self.labels.columns.values}\n\
+            {len(np.unique(labels.values))} labels: { np.unique(labels.values)}\n\
         X_train:{x_train.shape[0]} samples || X_val:{x_validation.shape[0]} samples || X_test:{x_test.shape[0]} samples")
 
         
