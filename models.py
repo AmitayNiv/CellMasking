@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class Classifier(nn.Module):
     def __init__(self, D_in,dropout= 0,number_of_classes= 1):
         super(Classifier, self).__init__()
@@ -9,6 +10,10 @@ class Classifier(nn.Module):
         self.fc2 = nn.Linear(int(D_in/2),int(D_in/4))
         self.fc3 = nn.Linear(int(D_in/4), int(D_in/8))
         self.fc4= nn.Linear(int(D_in/8), number_of_classes)
+        # self.fc1 = nn.Linear(D_in, int(D_in/8))
+        # self.fc2 = nn.Linear(int(D_in/8),int(D_in/16))
+        # self.fc3 = nn.Linear(int(D_in/16), int(D_in/32))
+        # self.fc4= nn.Linear(int(D_in/32), number_of_classes)
         self.soft = nn.Softmax(dim=0)
         self.drop = nn.Dropout(p=dropout)
         self.relu = nn.LeakyReLU()#nn.ReLU()
@@ -35,6 +40,11 @@ class G_Model(nn.Module):
         # Decoder: affine function
         self.fc3 = nn.Linear(input_dim//4, input_dim//2)
         self.fc4 = nn.Linear(input_dim//2, input_dim)
+        # self.fc1 = nn.Linear(input_dim,input_dim//16)
+        # self.fc2 = nn.Linear(input_dim//16, input_dim//32)
+        # # Decoder: affine function
+        # self.fc3 = nn.Linear(input_dim//32, input_dim//16)
+        # self.fc4 = nn.Linear(input_dim//16, input_dim)
         self.sig = nn.Sigmoid()
         self.selu = nn.SELU()
 

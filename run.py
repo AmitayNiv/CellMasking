@@ -3,7 +3,8 @@ import numpy as np
 import torch
 import wandb
 from data_loading import Data
-from train import train_G, train_classifier
+from test import test,test_xgb
+from train import train_G, train_classifier,train_xgb
 
 
 CUDA_VISIBLE_DEVICES=4
@@ -13,7 +14,7 @@ class arguments:
       self.seed = 3407
       self.cls_epochs = 70
       self.g_epochs = 20
-      self.cls_lr = 0.00002
+      self.cls_lr = 0.002
       self.g_lr = 0.0002
       self.weight_decay=5e-4
       self.dropout=0
@@ -42,9 +43,16 @@ def run(args):
     # batch_size=args.batch_size, train_ratio=args.train_ratio, weight_decay=args.weight_decay))
 
     ##
-    data = Data(train_ratio=0.7,features=True)
+    data = Data(train_ratio=args.train_ratio,features=True)
+    data_test= Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
+    
     cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
+    torch.save(cls,r"/media/data1/nivamitay/weights/cls.pt")
     g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
+    test(cls,g_model=g_model,device=device,data_obj=data_test)
+    xgb_cls = train_xgb(data,device)
+    test_xgb(xgb_cls,data_test,device)
+
 
 
 

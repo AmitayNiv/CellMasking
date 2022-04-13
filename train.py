@@ -4,16 +4,23 @@ import numpy as np
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import copy
+import xgboost as xgb
+
 
 from models import Classifier,G_Model
 from metrics import evaluate
 
 
 def train_classifier(args,device,data_obj,model,wandb_exp):
-    
+    print("Start training classifier")
     train_losses = []
     val_losses =[]
     best_model_auc = 0
+
+
+    train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
+    val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=len(data_obj.val_dataset))
+    test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
 
 
     if model == None:
@@ -21,10 +28,9 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
         model = model.to(device)
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader), epochs=args.cls_epochs)
 
-    train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
-    val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=len(data_obj.val_dataset))
-    test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
+
 
 
 
@@ -40,6 +46,7 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
             train_loss.backward()
             optimizer.step()
+            scheduler.step()
             
             train_loss += train_loss.item()
         else:
@@ -90,8 +97,8 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
 
 def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
+    print("Start training G model")
     classifier.eval()
-
 
     train_losses = []
     val_losses_list =[]
@@ -171,4 +178,23 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             test_score = evaluate(y_test_batch, y_pred_score)
             print(test_score)
     return best_G_model
+
+
+def train_xgb(data_obj,device):
+    print("Start training XGBoost")
+    xgb_cl = xgb.XGBClassifier(objective="multi:softmax")
+    X_train = np.array(data_obj.train_dataset.X_data)
+    y_train = np.array(data_obj.train_dataset.y_data)
+    y_train = np.argmax(y_train,axis=1)
+    xgb_cl.fit(X_train, y_train)
+
+    print(f"XGB Test Results on {data_obj.data_name}")
+    X_test = np.array(data_obj.test_dataset.X_data)
+    y_test = np.array(data_obj.test_dataset.y_data)
+    y_pred_score =  xgb_cl.predict_proba(X_test)
+    y_pred_score = torch.from_numpy(y_pred_score).to(device)
+    test_score = evaluate(y_test,y_pred_score)
+    print(test_score)
+    return xgb_cl
+
 
