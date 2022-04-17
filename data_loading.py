@@ -8,6 +8,14 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 import torch
 
+import dask
+import dask.dataframe as ddf
+import pyarrow as pa
+import scipy as sp
+
+
+main_folder_path = r"/media/data1/nivamitay/data/" 
+
 class ClassifierDataset(Dataset):
     def __init__(self, X_data, y_data):
         self.X_data = X_data
@@ -22,7 +30,6 @@ class ClassifierDataset(Dataset):
 
 class Data:
     def __init__(self, data_name ='10X_pbmc_5k_v3.h5ad' ,train_ratio=0.8,features=True,test_set=False):
-        main_folder_path = r"/media/data1/nivamitay/data/" 
         self.full_data = sc.read(os.path.join(main_folder_path,data_name))
         self.colnames = self.full_data.var.index
         self.rownames = self.full_data.obs.index
@@ -87,4 +94,25 @@ class Data:
         # print(f"Test samples:{y_test.index}")
        
 
+class ImmunData:
+    def __init__(self):
 
+    def decode_csr_array(val):
+        return sp.sparse.csr_matrix((val['data'], val['indices'], val['indptr']), shape=val['shape'])
+
+def read_cells(single_cell_dir, columns=None, filters=None):
+    result = ddf.read_parquet(
+        path=single_cell_dir, 
+        engine='pyarrow',
+        columns=columns,
+        filters=filters, 
+        metadata_task_size=32, 
+        split_row_groups=False
+    ).compute()
+    
+    meta = result
+    gex = None
+    if (columns and 'gex' in columns) or columns is None:
+        gex = sp.sparse.vstack([decode_csr_array(cell_gex) for cell_gex in result['gex']])
+        meta = result.drop('gex', axis=1)
+            
