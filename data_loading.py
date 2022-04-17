@@ -96,23 +96,31 @@ class Data:
 
 class ImmunData:
     def __init__(self):
+        self.single_cell_dir = os.path.join(main_folder_path,'/immunai/single-cell')
+        self.cell_type_hierarchy = pd.read_csv(os.path.join(main_folder_path,'/immunai/cell_types.csv'))
+        self.meta_cols = ['cell_id', 'project_id', 'sequencing_batch_id', 'lane_id', 'hashtag', 'test_set', 'tissue_type', 'cell_type']
+        
 
-    def decode_csr_array(val):
+    def decode_csr_array(self,val):
         return sp.sparse.csr_matrix((val['data'], val['indices'], val['indptr']), shape=val['shape'])
 
-def read_cells(single_cell_dir, columns=None, filters=None):
-    result = ddf.read_parquet(
-        path=single_cell_dir, 
-        engine='pyarrow',
-        columns=columns,
-        filters=filters, 
-        metadata_task_size=32, 
-        split_row_groups=False
-    ).compute()
-    
-    meta = result
-    gex = None
-    if (columns and 'gex' in columns) or columns is None:
-        gex = sp.sparse.vstack([decode_csr_array(cell_gex) for cell_gex in result['gex']])
-        meta = result.drop('gex', axis=1)
-            
+    def read_cells(self,columns=None, filters=None):
+        result = ddf.read_parquet(
+            path=self.single_cell_dir, 
+            engine='pyarrow',
+            columns=columns,
+            filters=filters, 
+            metadata_task_size=32, 
+            split_row_groups=False
+        ).compute()
+        
+        self.meta = result
+        self.gex = None
+        if (columns and 'gex' in columns) or columns is None:
+            self.gex = sp.sparse.vstack([self.decode_csr_array(cell_gex) for cell_gex in result['gex']])
+            self.metameta = result.drop('gex', axis=1)
+        
+        self.train_lanes = set(self.meta[~self.meta['test_set']]['lane_id'].unique())
+        self.test_lanes = set(self.meta[self.meta['test_set']]['lane_id'].unique())
+
+        
