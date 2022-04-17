@@ -11,9 +11,8 @@ def get_mask(g_model,data_obj,args,device):
         g_model.eval()
         for X_batch, y_batch in dataset_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-            y_train = np.argmax(y_train,axis=1)
             mask = (np.array(g_model(X_batch).detach().cpu())>0.5).astype(int)
-            mask_df.append(pd.DataFrame(mask,columns=data_obj.colnames))
+            mask_df = pd.concat([mask_df,pd.DataFrame(mask,columns=data_obj.colnames)])
 
     return mask_df
 

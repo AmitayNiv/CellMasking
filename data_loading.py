@@ -61,8 +61,8 @@ class Data:
         self.colnames = data.columns
 
         cell_type_col = "cell_type_l2"
-        labels = self.full_data.obs[cell_type_col]
-        self.labels = pd.get_dummies(labels)[np.unique(labels.values)]
+        self.named_labels = self.full_data.obs[cell_type_col]
+        self.labels = pd.get_dummies(self.named_labels)[np.unique(self.named_labels.values)]
 
         if not test_set:
             x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=123)
@@ -84,7 +84,7 @@ class Data:
         
 
         print(f"Loading {data_name} dataset:\n Total {self.labels.shape[0]} samples, {data.shape[1]} features\n\
-            {len(np.unique(labels.values))} labels: { np.unique(labels.values)}")
+            {len(np.unique(self.named_labels.values))} labels: { np.unique(self.named_labels.values)}")
         
         
         if not test_set:

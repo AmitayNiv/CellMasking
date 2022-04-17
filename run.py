@@ -47,15 +47,18 @@ def run(args):
     data = Data(train_ratio=args.train_ratio,features=True)
     data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
     
-    # cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
+    cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
     # torch.save(cls,r"/media/data1/nivamitay/weights/cls.pt")
-    cls = torch.load(r"/media/data1/nivamitay/weights/cls.pt")
+    # cls = torch.load(r"/media/data1/nivamitay/weights/cls.pt",map_location=device)
     g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
     test(cls,g_model=g_model,device=device,data_obj=data_test)
     # xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
     mask_df = get_mask(g_model,data,args,device)
+    mask_df["label"] = data.named_labels.values
+    mask_df = mask_df.groupby(by=["label"]).sum()
+    mask_df.to_csv( r"/media/data1/nivamitay/data/mask_csv.csv")
     print()
 
 
