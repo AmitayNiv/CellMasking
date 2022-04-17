@@ -12,6 +12,7 @@ import dask
 import dask.dataframe as ddf
 import pyarrow as pa
 import scipy as sp
+from collections import defaultdict
 
 
 main_folder_path = r"/media/data1/nivamitay/data/" 
@@ -75,6 +76,8 @@ class Data:
             self.val_dataset   = ClassifierDataset(torch.from_numpy(x_validation.values).float(), torch.from_numpy(y_validation.values).float())
             self.test_dataset   = ClassifierDataset(torch.from_numpy(x_test.values).float(), torch.from_numpy(y_test.values).float())
 
+            self.all_dataset = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
+            
             self.class_weights = 1./(torch.from_numpy(y_train.values).float().sum(dim=0))
         else:
             self.test_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
@@ -96,10 +99,41 @@ class Data:
 
 class ImmunData:
     def __init__(self):
-        self.single_cell_dir = os.path.join(main_folder_path,'/immunai/single-cell')
-        self.cell_type_hierarchy = pd.read_csv(os.path.join(main_folder_path,'/immunai/cell_types.csv'))
+        self.single_cell_dir = os.path.join(main_folder_path,'immunai/single-cell')
+        self.cell_type_hierarchy = pd.read_csv(os.path.join(main_folder_path,'immunai/cell_types.csv'))
+        self.genes = pd.read_csv(os.path.join(main_folder_path,'immunai/genes.csv'), index_col='gene_index')
         self.meta_cols = ['cell_id', 'project_id', 'sequencing_batch_id', 'lane_id', 'hashtag', 'test_set', 'tissue_type', 'cell_type']
         
+
+    def get_cell_type_descendents(self):
+
+        def get_cell_type_descendants(cell_type):
+            descendants = cell_type_children[cell_type]
+            for child in descendants:
+                descendants = descendants | get_cell_type_descendants(child)
+                
+            return descendants
+
+        n_cell_types = self.cell_type_hierarchy.shape[0]
+        cell_types = self.cell_type_hierarchy['cell_type']
+        cell_type_parent = dict(zip(cell_types, self.cell_type_hierarchy['parent_cell_type']))
+        cell_type_indices = dict(zip(cell_types, self.cell_type_hierarchy.index.values))
+
+        cell_type_children = defaultdict(set)
+        for child_cell_type, parent_cell_type in cell_type_parent.items():
+            cell_type_children[parent_cell_type].add(child_cell_type)
+
+        
+
+        # each cell type represented by a row, with descendents of that cell type indicated as ones in columns
+        cell_type_descendents = np.zeros((n_cell_types, n_cell_types), dtype=int)
+        for parent_cell_type, parent_cell_type_idx in cell_type_indices.items():
+            cell_type_descendents[parent_cell_type_idx, parent_cell_type_idx] = 1
+            for descendent_cell_type in get_cell_type_descendants(parent_cell_type):
+                descendent_cell_type_idx = cell_type_indices[descendent_cell_type]
+                cell_type_descendents[parent_cell_type_idx, descendent_cell_type_idx] = 1
+        return cell_type_descendents
+
 
     def decode_csr_array(self,val):
         return sp.sparse.csr_matrix((val['data'], val['indices'], val['indptr']), shape=val['shape'])

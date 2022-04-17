@@ -31,3 +31,4 @@ def test_xgb(xgb_cls,data_obj,device):
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)
     print(test_score)
+
