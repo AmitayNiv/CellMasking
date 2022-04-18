@@ -14,15 +14,15 @@ class arguments:
    def __init__(self):
       self.seed = 3407
       self.cls_epochs = 60
-      self.g_epochs = 30
+      self.g_epochs = 20
       self.cls_lr = 0.0002
-      self.g_lr = 0.001
+      self.g_lr = 0.0002
       self.weight_decay=5e-4
       self.dropout=0
       self.batch_size = 1024
-      self.batch_factor = 8
+      self.batch_factor = 2
       self.train_ratio = 0.7
-      self.data_type = "immunai"
+      self.data_type = "other"#"immunai"
       self.save_cls_checkpoints = True
       self.save_g_checkpoints = False
 
@@ -64,7 +64,7 @@ def run(args):
     if args.save_g_checkpoints:
         torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
     # test(cls,g_model=g_model,device=device,data_obj=data_test)
-    xgb_cls = train_xgb(data,device)
+    # xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
     # mask_df = get_mask(g_model,data,args,device)

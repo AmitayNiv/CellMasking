@@ -144,7 +144,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             
             if (global_step + 1) % args.batch_factor == 0:
                 optimizer_G.step()
-                optimizer_G.zero_grad()
+                optimizer_G.zero_grad(set_to_none=True)
                 scheduler.step()
             train_loss += loss.item()
 
