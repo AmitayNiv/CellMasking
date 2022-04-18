@@ -13,17 +13,19 @@ CUDA_VISIBLE_DEVICES=4
 class arguments:
    def __init__(self):
       self.seed = 3407
-      self.cls_epochs = 70
-      self.g_epochs = 20
-      self.cls_lr = 0.002
-      self.g_lr = 0.0002
+      self.cls_epochs = 60
+      self.g_epochs = 30
+      self.cls_lr = 0.0002
+      self.g_lr = 0.001
       self.weight_decay=5e-4
       self.dropout=0
-      self.batch_size = 50
+      self.batch_size = 1024
+      self.batch_factor = 8
       self.train_ratio = 0.7
       self.data_type = "immunai"
-      self.save_cls_checkpoints = False
-      self.save_G_checkpoints = False
+      self.save_cls_checkpoints = True
+      self.save_g_checkpoints = False
+
 
 
 
@@ -48,16 +50,16 @@ def run(args):
 
     ##
     if args.data_type == "immunai":
-        data = ImmunData(data_set="pbmc",genes_filter="narrow_subset")
+        data = ImmunData(data_set="pbmc",genes_filter="narrow_subset",all_types=False)
     else:
         data = Data(train_ratio=args.train_ratio,features=True)
     # data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
     
     
-    cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
-    if args.save_cls_checkpoints:
-        torch.save(cls,r"/media/data1/nivamitay/CellMasking/weights/cls.pt")
-    # cls = torch.load(r"/media/data1/nivamitay/weights/cls.pt",map_location=device)
+    # cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
+    # if args.save_cls_checkpoints:
+    #     torch.save(cls,r"/media/data1/nivamitay/CellMasking/weights/cls.pt")
+    cls = torch.load(r"/media/data1/nivamitay/CellMasking/weights/cls.pt",map_location=device)
     g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
     if args.save_g_checkpoints:
         torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")

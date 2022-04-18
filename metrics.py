@@ -22,8 +22,9 @@ def evaluate(y_test, y_pred_score):
         aucs.append(metrics.auc(fpr, tpr))
         auprs.append(aupr)
     
+
     auc = metrics.roc_auc_score(y_test, y_pred_score.detach().cpu(),multi_class='ovr')
-    auprss = metrics.average_precision_score(y_test, y_pred_score.detach().cpu())
+    auprs_weighted = metrics.average_precision_score(y_test, y_pred_score.detach().cpu(),average="weighted")
     
     # f1 = metrics.f1_score(y_test, y_pred,average='macro')
     # precision = metrics.precision_score(y_test, y_pred,average='macro')
@@ -33,13 +34,14 @@ def evaluate(y_test, y_pred_score):
     score['accuracy'] = accuracy
     # score['precision'] = precision
     # score['auc'] = aucs
-    score['mauc'] = np.mean(np.nan_to_num(aucs,nan=0.0))
-    score['med_auc'] = np.median(np.nan_to_num(aucs,nan=0.0))
+    score['mauc'] = np.nanmean(aucs)
+    score['med_auc'] = np.nanmedian(aucs)
     # score['f1'] = f1
     # score['aupr'] = auprs
-    score['maupr'] = np.mean(np.nan_to_num(auprs,nan=0.0))
-    score['med_aupr'] = np.median(np.nan_to_num(auprs,nan=0.0))
+    score['maupr'] = np.nanmean(auprs)
+    score['weight_aupr'] = auprs_weighted
+    score['med_aupr'] = np.nanmedian(auprs)
     assert auc == score['mauc']
-    assert auprss == score['maupr']
+    # assert auprs_weighted == score['maupr']
     # score['recall'] = recall
     return score

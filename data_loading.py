@@ -68,6 +68,9 @@ class Data:
         self.named_labels = self.full_data.obs[cell_type_col]
         self.labels = pd.get_dummies(self.named_labels)[np.unique(self.named_labels.values)]
 
+        self.number_of_classes = self.labels.shape[1]
+        self.n_features = len(self.colnames)
+
         if not test_set:
             x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=123)
             x_validation,x_test,y_validation,y_test = train_test_split(x_test,y_test,test_size=0.5,random_state=123)
@@ -102,16 +105,15 @@ class Data:
        
 
 class ImmunData:
-    def __init__(self,data_set = None,genes_filter="all",test_set=False):
+    def __init__(self,data_set = None,genes_filter="all",test_set=False,all_types = False):
         self.single_cell_dir = os.path.join(main_folder_path,'immunai/single-cell')
         self.cell_type_hierarchy = pd.read_csv(os.path.join(main_folder_path,'immunai/cell_types.csv'))
-        self.cell_types = self.cell_type_hierarchy['cell_type']
-        self.named_labels = self.cell_types.values
-        self.map = dict(zip(self.cell_types.values, self.cell_types.index))
         self.genes = pd.read_csv(os.path.join(main_folder_path,'immunai/genes.csv.gz'), index_col='gene_index')
+        self.data_set = data_set
+        self.all_types = all_types
         self.meta_cols = ['cell_id', 'project_id', 'sequencing_batch_id', 'lane_id', 'hashtag', 'test_set', 'tissue_type', 'cell_type']
 
-        self.get_cell_type_weights()
+        self.init_data_types()
 
         filters = [] if data_set==None else [('tissue_type', '=', data_set)]
         train_filters = filters.copy()
@@ -119,7 +121,7 @@ class ImmunData:
         test_filters = filters.copy()
         test_filters.append(("test_set","=",True))
 
-        self.number_of_classes = self.cell_types.shape[0]
+
         train_gex, train_meta = self.read_cells(filters=train_filters)
         test_gex, test_meta = self.read_cells(filters=test_filters)
 
@@ -140,8 +142,13 @@ class ImmunData:
         self.test_dataset   = ClassifierDataset(torch.from_numpy(x_test.todense()).float(), torch.from_numpy(y_test).float())
 
         active_classes = len(np.unique(train_meta["int_cell_type"].values))
+        if not all_types:
+            self.class_weights = 1./(torch.from_numpy(train_labels).float().sum(dim=0))
+
+
+        self.n_features = test_gex.shape[1]
         name = "All" if data_set==None else data_set
-        print(f"Loading {name} dataset:\n Total {test_meta.shape[0]+train_meta.shape[0]} samples, {test_gex.shape[1]} features\n\
+        print(f"Loading {name} dataset:\n Total {test_meta.shape[0]+train_meta.shape[0]} samples, {self.n_features } features\n\
             {active_classes}/{self.number_of_classes} labels")
 
         if not test_set:
@@ -149,12 +156,24 @@ class ImmunData:
             print(f"Class weights:{self.class_weights}")
 
 
-    def convert_map(self,x):
-        return self.map[x]
+    def init_data_types(self):
+        filters = [] if self.data_set==None else [('tissue_type', '=', self.data_set)]
+        _, self.meta = self.read_cells(columns=self.meta_cols,filters = filters)
+        if self.all_types:
+            self.cell_types = self.cell_type_hierarchy['cell_type']
+            self.named_labels = self.cell_types.values
+            self.map = dict(zip(self.cell_types.values, self.cell_types.index))
+            self.number_of_classes = self.cell_types.shape[0]
+            self.get_cell_type_weights()
+        else:
+            self.existing_types = np.unique(self.meta["cell_type"].values)
+            self.named_labels = self.existing_types 
+            self.map = dict(zip(self.existing_types, list(range(self.existing_types.shape[0]))))
+            self.number_of_classes = self.existing_types.shape[0]
         
 
+
     def get_cell_type_weights(self):
-        _, meta =self.read_cells(columns=self.meta_cols)
         def get_cell_type_descendants(cell_type):
             descendants = cell_type_children[cell_type]
             for child in descendants:
@@ -181,8 +200,8 @@ class ImmunData:
                 descendent_cell_type_idx = cell_type_indices[descendent_cell_type]
                 cell_type_descendents[parent_cell_type_idx, descendent_cell_type_idx] = 1
 
-        annotated_cell_types = np.zeros((meta.shape[0], len(self.cell_types)), dtype=int)
-        for cell_idx, annotated_cell_type in enumerate(meta['cell_type']):
+        annotated_cell_types = np.zeros((self.meta.shape[0], len(self.cell_types)), dtype=int)
+        for cell_idx, annotated_cell_type in enumerate(self.meta['cell_type']):
             annotated_cell_types[cell_idx, cell_type_indices[annotated_cell_type]] = 1
         annotated_cell_type_ancestors = np.matmul(annotated_cell_types, cell_type_descendents.transpose())
         cell_type_abundances = pd.DataFrame(data={
@@ -196,6 +215,8 @@ class ImmunData:
         
         self.class_weights = cell_type_abundances['class_weight'].values 
 
+    def convert_map(self,x):
+        return self.map[x]
 
     def decode_csr_array(self,val):
         return sp.sparse.csr_array((val['data'], val['indices'], val['indptr']), shape=val['shape'])
@@ -211,11 +232,11 @@ class ImmunData:
         ).compute()
         
         meta = result
-        meta["int_cell_type"] = meta["cell_type"].apply(self.convert_map)
         gex = None
         if (columns and 'gex' in columns) or columns is None:
             gex = sp.sparse.vstack([self.decode_csr_array(cell_gex) for cell_gex in result['gex']])
             meta  = result.drop('gex', axis=1)
+            meta["int_cell_type"] = meta["cell_type"].apply(self.convert_map)
         return gex, meta
         
         # self.train_lanes = set(self.meta[~self.meta['test_set']]['lane_id'].unique())

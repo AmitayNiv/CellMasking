@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import copy
 import xgboost as xgb
+from tqdm import tqdm
 
 
 from models import Classifier,G_Model
@@ -24,31 +25,40 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
 
     if model == None:
-        model = Classifier(len(data_obj.colnames),dropout=args.dropout,number_of_classes=len(data_obj.labels.columns))
+        model = Classifier(data_obj.n_features ,dropout=args.dropout,number_of_classes=data_obj.number_of_classes)
         model = model.to(device)
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader), epochs=args.cls_epochs)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
 
 
 
 
-
+    global_step = 0
     for e in range(args.cls_epochs):
         model.train()
         train_loss = 0
+        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
         for X_train_batch, y_train_batch in train_loader:
             X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
-            optimizer.zero_grad()
+            
 
             y_train_pred = model(X_train_batch)
-            train_loss = criterion(y_train_pred, y_train_batch)
+            loss = criterion(y_train_pred, y_train_batch)
+            loss.backward()
 
-            train_loss.backward()
-            optimizer.step()
-            scheduler.step()
             
-            train_loss += train_loss.item()
+            if (global_step + 1) % args.batch_factor == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+                scheduler.step()
+
+            
+            train_loss += loss.item()
+
+            global_step += 1
+            # pbar.update(X_train_batch.shape[0])
+            # pbar.set_postfix(**{'loss (batch)': loss.item()})
         else:
             val_loss = 0
         
@@ -68,12 +78,13 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
             # val_losses.append(val_loss)
 
             print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
-                  "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
-                  "Val Loss: {:.5f}.. ".format(val_loss/len(val_loader)),
-                  "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
-                  "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
-                  "Val ACC: {:.5f}.. ".format(val_score["accuracy"]),
-                  )
+                "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
+                "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
+                "Val medAUC: {:.5f}.. ".format(val_score["med_auc"]),
+                "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
+                "Val wegAUPR: {:.5f}.. ".format(val_score["weight_aupr"]),
+                "Val medAUPR: {:.5f}.. ".format(val_score["med_aupr"]),
+                "Val ACC: {:.5f}.. ".format(val_score["accuracy"]))
             if val_score["mauc"] >best_model_auc:
                 best_model_auc = val_score["mauc"]
                 best_model_index = e+1
@@ -105,7 +116,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
     best_model_auc = 0
 
     if model == None:
-        model = G_Model(len(data_obj.colnames))
+        model = G_Model(data_obj.n_features)
         model = model.to(device)
 
     train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
@@ -114,25 +125,32 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
 
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer_G = optim.Adam(model.parameters(), lr=args.cls_lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr), steps_per_epoch=len(train_loader), epochs=args.g_epochs)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
 
 
-
+    global_step = 0
     for e in range(args.g_epochs):
+        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.g_epochs}', unit='vec') as pbar:
         train_loss = 0
         loss_list = []
         model.train()
         for X_train_batch, y_train_batch in train_loader:
             X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
-            optimizer_G.zero_grad()
             mask = model(X_train_batch)
             cropped_features = X_train_batch * mask
             output = classifier(cropped_features)
             loss = criterion(output, y_train_batch) + mask.mean()
             loss.backward()
-            optimizer_G.step()
-            scheduler.step()
+            
+            if (global_step + 1) % args.batch_factor == 0:
+                optimizer_G.step()
+                optimizer_G.zero_grad()
+                scheduler.step()
             train_loss += loss.item()
+
+            # pbar.update(X_train_batch.shape[0])
+            # pbar.set_postfix(**{'loss (batch)': loss.item()})
+            global_step +=1
         else:
             val_losses = 0
         
@@ -143,7 +161,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
                 for X_val_batch, y_val_batch in val_loader:
                     X_val_batch, y_val_batch = X_val_batch.to(device), y_val_batch.to(device)
                     mask_val = model(X_val_batch)   
-                    print("mask mean = {}, max= {}, min = {}".format(mask_val.mean(),mask_val.max(),mask_val.min()))
+                    print("mask mean = {:.5f}, max= {:.5f}, min = {:.5f}".format(mask_val.mean(),mask_val.max(),mask_val.min()))
                     cropped_features = X_val_batch * mask_val
                     output = classifier(cropped_features)
                     val_loss = criterion(output, y_val_batch) + mask_val.mean()
@@ -151,11 +169,14 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
 
                     val_score = evaluate(y_val_batch, output)
                 print("Epoch: {}/{}.. ".format(e+1,  args.g_epochs),
-                  "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
-                  "Val Loss: {:.5f}.. ".format(val_losses/len(val_loader)),
-                  "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
-                  "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
-                  "Val ACC: {:.5f}.. ".format(val_score["accuracy"]))
+                "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
+                "Val Loss: {:.5f}.. ".format(val_losses/len(val_loader)),
+                "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
+                "Val medAUC: {:.5f}.. ".format(val_score["med_auc"]),
+                "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
+                "Val wegAUPR: {:.5f}.. ".format(val_score["weight_aupr"]),
+                "Val medAUPR: {:.5f}.. ".format(val_score["med_aupr"]),
+                "Val ACC: {:.5f}.. ".format(val_score["accuracy"]))
                 if val_score["mauc"] >best_model_auc:
                     best_model_auc = val_score["mauc"]
                     best_model_index = e+1
