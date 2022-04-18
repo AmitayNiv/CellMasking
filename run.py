@@ -2,7 +2,7 @@ import random
 import numpy as np
 import torch
 import wandb
-from data_loading import Data
+from data_loading import Data,ImmunData
 from test import test,test_xgb
 from train import train_G, train_classifier,train_xgb
 from utils import get_mask
@@ -21,6 +21,9 @@ class arguments:
       self.dropout=0
       self.batch_size = 50
       self.train_ratio = 0.7
+      self.data_type = "immunai"
+      self.save_cls_checkpoints = False
+      self.save_G_checkpoints = False
 
 
 
@@ -31,7 +34,7 @@ def run(args):
     torch.manual_seed(args.seed)
 
     ## Conecting to device
-    device = torch.device('cuda:4' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
     if device != 'cpu':
         torch.cuda.empty_cache()
     print(f'Using device {device}')
@@ -44,21 +47,28 @@ def run(args):
     # batch_size=args.batch_size, train_ratio=args.train_ratio, weight_decay=args.weight_decay))
 
     ##
-    data = Data(train_ratio=args.train_ratio,features=True)
-    data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
+    if args.data_type == "immunai":
+        data = ImmunData(data_set="pbmc",genes_filter="narrow_subset")
+    else:
+        data = Data(train_ratio=args.train_ratio,features=True)
+    # data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
+    
     
     cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
-    # torch.save(cls,r"/media/data1/nivamitay/weights/cls.pt")
+    if args.save_cls_checkpoints:
+        torch.save(cls,r"/media/data1/nivamitay/CellMasking/weights/cls.pt")
     # cls = torch.load(r"/media/data1/nivamitay/weights/cls.pt",map_location=device)
     g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
-    test(cls,g_model=g_model,device=device,data_obj=data_test)
-    # xgb_cls = train_xgb(data,device)
+    if args.save_g_checkpoints:
+        torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
+    # test(cls,g_model=g_model,device=device,data_obj=data_test)
+    xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
-    mask_df = get_mask(g_model,data,args,device)
-    mask_df["label"] = data.named_labels.values
-    mask_df = mask_df.groupby(by=["label"]).sum()
-    mask_df.to_csv( r"/media/data1/nivamitay/data/mask_csv.csv")
+    # mask_df = get_mask(g_model,data,args,device)
+    # mask_df["label"] = data.named_labels.values
+    # mask_df = mask_df.groupby(by=["label"]).sum()
+    # mask_df.to_csv( r"/media/data1/nivamitay/data/mask_csv.csv")
     print()
 
 

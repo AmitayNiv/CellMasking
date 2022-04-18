@@ -30,8 +30,8 @@ def read_cells(single_cell_dir, columns=None, filters=None):
     return meta, gex
 
 if __name__ == '__main__':
-    imm_data = ImmunData()
-    meta, gex = imm_data.read_cells()
+    imm_data = ImmunData(data_set="pbmc",genes_filter="narrow_subset")
+
     # single_cell_dir = r'/media/data1/nivamitay/data/immunai/single-cell'
     # meta_cols = ['cell_id', 'project_id', 'sequencing_batch_id', 'lane_id', 'hashtag', 'test_set', 'tissue_type', 'cell_type']
     # meta, _ = read_cells(single_cell_dir,columns=None)
