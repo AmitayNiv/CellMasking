@@ -202,6 +202,108 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
     return best_G_model
 
 
+def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
+    print("Start training H classifier")
+    train_losses = []
+    val_losses =[]
+    best_model_auc = 0
+
+
+    train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
+    val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=len(data_obj.val_dataset))
+    test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
+
+
+    if model == None:
+        model = Classifier(data_obj.n_features ,dropout=args.dropout,number_of_classes=data_obj.number_of_classes)
+        model = model.to(device)
+    criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
+    optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor, epochs=args.cls_epochs)
+
+
+
+
+    global_step = 0
+    g_model.to(device)
+    
+    for e in range(args.cls_epochs):
+        g_model.eval()
+        model.train()
+        train_loss = 0
+        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
+        for X_train_batch, y_train_batch in train_loader:
+            X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
+            
+            mask = g_model(X_train_batch)
+            y_train_pred = model(mask)
+            loss = criterion(y_train_pred, y_train_batch)
+            loss.backward()
+
+            
+            if (global_step + 1) % args.batch_factor == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+                scheduler.step()
+
+            
+            train_loss += loss.item()
+
+            global_step += 1
+            # pbar.update(X_train_batch.shape[0])
+            # pbar.set_postfix(**{'loss (batch)': loss.item()})
+        else:
+            val_loss = 0
+        
+            with torch.no_grad():
+                model.eval()
+                g_model.eval()
+                val_epoch_loss = 0
+                for X_val_batch, y_val_batch in val_loader:
+                    X_val_batch, y_val_batch = X_val_batch.to(device), y_val_batch.to(device)
+                    mask = g_model(X_val_batch)
+                    y_val_pred = model(mask) 
+                    val_loss = criterion(y_val_pred, y_val_batch)
+                    val_epoch_loss += val_loss.item()
+                    val_score = evaluate(y_val_batch, y_val_pred)
+
+    
+                    
+            # train_losses.append(train_loss/len(train_batch))
+            # val_losses.append(val_loss)
+
+            print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
+                "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
+                "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
+                "Val medAUC: {:.5f}.. ".format(val_score["med_auc"]),
+                "Val mAUPR: {:.5f}.. ".format(val_score["maupr"]),
+                "Val wegAUPR: {:.5f}.. ".format(val_score["weight_aupr"]),
+                "Val medAUPR: {:.5f}.. ".format(val_score["med_aupr"]),
+                "Val ACC: {:.5f}.. ".format(val_score["accuracy"]))
+            if val_score["mauc"] >best_model_auc:
+                best_model_auc = val_score["mauc"]
+                best_model_index = e+1
+                # best_model_name = "/F_model_{:.3f}.pt".format(best_model_auc)
+                # best_model_path = current_folder+best_model_name
+                print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
+                # torch.save(model,best_model_path)
+                best_model = copy.deepcopy(model)
+            # scheduler.step(val_score["auc"])
+
+    best_model = best_model.to(device)
+    with torch.no_grad():
+        best_model.eval()
+        g_model.eval()
+        for X_test_batch, y_test_batch in test_loader:
+            X_test_batch, y_test_batch = X_test_batch.to(device), y_test_batch.to(device)
+            mask = g_model(X_test_batch)
+            y_pred_score = best_model(mask)
+            test_score = evaluate(y_test_batch, y_pred_score)
+            print("Classifier test results:")
+            print(test_score)
+    return best_model
+
+
 def train_xgb(data_obj,device):
     print("Start training XGBoost")
     xgb_cl = xgb.XGBClassifier(objective="multi:softmax")
