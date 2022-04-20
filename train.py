@@ -29,7 +29,7 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
         model = model.to(device)
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor, epochs=args.cls_epochs)
 
 
 
@@ -125,11 +125,12 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
 
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer_G = optim.Adam(model.parameters(), lr=args.cls_lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor, epochs=args.g_epochs)
 
 
     global_step = 0
     for e in range(args.g_epochs):
+        classifier.eval()
         # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.g_epochs}', unit='vec') as pbar:
         train_loss = 0
         loss_list = []

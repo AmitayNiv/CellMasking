@@ -13,14 +13,14 @@ CUDA_VISIBLE_DEVICES=4
 class arguments:
    def __init__(self):
       self.seed = 3407
-      self.cls_epochs = 60
+      self.cls_epochs = 70
       self.g_epochs = 20
-      self.cls_lr = 0.0002
+      self.cls_lr = 0.002
       self.g_lr = 0.0002
       self.weight_decay=5e-4
       self.dropout=0
-      self.batch_size = 1024
-      self.batch_factor = 2
+      self.batch_size = 50
+      self.batch_factor = 1
       self.train_ratio = 0.7
       self.data_type = "other"#"immunai"
       self.save_cls_checkpoints = True
@@ -56,21 +56,25 @@ def run(args):
     # data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
     
     
-    # cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
-    # if args.save_cls_checkpoints:
-    #     torch.save(cls,r"/media/data1/nivamitay/CellMasking/weights/cls.pt")
-    cls = torch.load(r"/media/data1/nivamitay/CellMasking/weights/cls.pt",map_location=device)
+    cls = train_classifier(args,device=device,data_obj=data,model=None,wandb_exp=None)
+    if args.save_cls_checkpoints:
+        torch.save(cls,r"/media/data1/nivamitay/CellMasking/weights/cls.pt")
+    # cls_z = torch.load(r"/media/data1/nivamitay/CellMasking/weights/cls.pt",map_location=device)
     g_model = train_G(args,device,data_obj=data,classifier=cls,model=None,wandb_exp=None)
+    # g_model = train_G(args,device,data_obj=data,classifier=cls_z,model=None,wandb_exp=None)
     if args.save_g_checkpoints:
         torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
+    
     # test(cls,g_model=g_model,device=device,data_obj=data_test)
     # xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
-    # mask_df = get_mask(g_model,data,args,device)
-    # mask_df["label"] = data.named_labels.values
+    mask_df,mask_x_df,input_df = get_mask(g_model,data,args,device)
+    mask_df["label"]= mask_x_df["label"] = input_df["label"] = data.named_labels.values
     # mask_df = mask_df.groupby(by=["label"]).sum()
-    # mask_df.to_csv( r"/media/data1/nivamitay/data/mask_csv.csv")
+    mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask.csv")
+    mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_df.csv")
+    input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_df.csv")
     print()
 
 

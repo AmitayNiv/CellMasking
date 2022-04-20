@@ -47,6 +47,7 @@ class Data:
             self.features = self.colnames
 
         self.overlap = list(set(self.colnames) & set(self.features))
+        self.overlap.sort()
         if len(self.overlap) < 100:
             sys.exit('Error: Not enough feature overlap.')
 
@@ -72,8 +73,8 @@ class Data:
         self.n_features = len(self.colnames)
 
         if not test_set:
-            x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=123)
-            x_validation,x_test,y_validation,y_test = train_test_split(x_test,y_test,test_size=0.5,random_state=123)
+            x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=None)
+            x_validation,x_test,y_validation,y_test = train_test_split(x_test,y_test,test_size=0.5,random_state=None)
 
             self.train_samples = x_train.index
             self.val_samples = x_validation.index
@@ -97,6 +98,7 @@ class Data:
         if not test_set:
             print(f"X_train:{x_train.shape[0]} samples || X_val:{x_validation.shape[0]} samples || X_test:{x_test.shape[0]} samples")
             print(f"Class weights: {self.class_weights}")
+
 
         
         # print(f"Train samples:{y_train.index}")
