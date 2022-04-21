@@ -23,7 +23,7 @@ class arguments:
       self.batch_factor = 1
       self.train_ratio = 0.7
       self.data_type = "other"#"immunai"
-      self.save_cls_checkpoints = True
+      self.save_cls_checkpoints = False
       self.save_g_checkpoints = False
 
 
@@ -70,12 +70,13 @@ def run(args):
     # xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
-    # mask_df,mask_x_df,input_df = get_mask(g_model,data,args,device)
-    # mask_df["label"]= mask_x_df["label"] = input_df["label"] = data.named_labels.values
-    # # mask_df = mask_df.groupby(by=["label"]).sum()
-    # mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask.csv")
-    # mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_df.csv")
-    # input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_df.csv")
+    mask_df,mask_x_df,input_df = get_mask(g_model,data,args,device)
+    mask_df["label"]= mask_x_df["label"] = input_df["label"] = data.named_labels.values
+    mask_df["label_2"]= mask_x_df["label_2"] = input_df["label_2"] = data.named_labels_2.values
+    # mask_df = mask_df.groupby(by=["label"]).sum()
+    mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_l1.csv")
+    mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_l1.csv")
+    input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_l1.csv")
     print()
 
 

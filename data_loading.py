@@ -65,12 +65,19 @@ class Data:
         # data = data[self.features]
         self.colnames = data.columns
 
-        cell_type_col = "cell_type_l2"
+
+        cell_type_col = "cell_type_l1"
         self.named_labels = self.full_data.obs[cell_type_col]
+
         self.labels = pd.get_dummies(self.named_labels)[np.unique(self.named_labels.values)]
 
         self.number_of_classes = self.labels.shape[1]
         self.n_features = len(self.colnames)
+
+        ##########
+        cell_type_col = "cell_type_l2"
+        self.named_labels_2 = self.full_data.obs[cell_type_col]
+        #########
 
         if not test_set:
             x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=None)
