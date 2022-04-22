@@ -66,7 +66,7 @@ class Data:
         self.colnames = data.columns
 
 
-        cell_type_col = "cell_type_l1"
+        cell_type_col = "cell_type_l2"
         self.named_labels = self.full_data.obs[cell_type_col]
 
         self.labels = pd.get_dummies(self.named_labels)[np.unique(self.named_labels.values)]
@@ -75,7 +75,7 @@ class Data:
         self.n_features = len(self.colnames)
 
         ##########
-        cell_type_col = "cell_type_l2"
+        cell_type_col = "cell_type_l1"
         self.named_labels_2 = self.full_data.obs[cell_type_col]
         #########
 

@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import pandas as pd
 import torch
 import wandb
 from data_loading import Data,ImmunData
@@ -64,19 +65,25 @@ def run(args):
     if args.save_g_checkpoints:
         torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
 
-    h_cls =  train_H(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None)
+    # h_cls =  train_H(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None)
     
     # test(cls,g_model=g_model,device=device,data_obj=data_test)
     # xgb_cls = train_xgb(data,device)
     # test_xgb(xgb_cls,data_test,device)
 
     mask_df,mask_x_df,input_df = get_mask(g_model,data,args,device)
-    mask_df["label"]= mask_x_df["label"] = input_df["label"] = data.named_labels.values
-    mask_df["label_2"]= mask_x_df["label_2"] = input_df["label_2"] = data.named_labels_2.values
+    inv_mask_vals = 1-mask_df.values[:,1:-1]
+    inv_mask_vals = np.concatenate(( np.expand_dims(np.array(mask_df.index),axis=1),inv_mask_vals),axis=1)
+    inv_mask_vals = np.concatenate((inv_mask_vals, np.expand_dims(np.array(mask_df["y"].values),axis=1),),axis=1)
+    mask_inv = pd.DataFrame(inv_mask_vals,columns=mask_df.columns)
+    mask_df["label"]= mask_x_df["label"] = input_df["label"] = mask_inv["label"]= data.named_labels.values
+    mask_df["label_2"]= mask_x_df["label_2"] = input_df["label_2"] = mask_inv["label_2"]=data.named_labels_2.values
     # mask_df = mask_df.groupby(by=["label"]).sum()
-    mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_l1.csv")
-    mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_l1.csv")
-    input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_l1.csv")
+    mask_inv.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_inv.csv")
+    mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask.csv")
+    mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x.csv")
+    input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input.csv")
+
     print()
 
 
