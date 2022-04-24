@@ -84,26 +84,21 @@ def run(args):
     mask_df,mask_x_df,input_df,mask_inv = get_mask(g_model,data,args,device)
 
 
-    visulaize_tsne(mask_df,"mask_df",wandb_exp)
-    visulaize_tsne(mask_x_df,"mask_x_df",wandb_exp)
-    visulaize_tsne(input_df,"input_df",wandb_exp)
+    # visulaize_tsne(mask_df,"mask_df",wandb_exp)
+    # visulaize_tsne(mask_x_df,"mask_x_df",wandb_exp)
+    # visulaize_tsne(input_df,"input_df",wandb_exp)
     # visulaize_tsne(mask_inv,"mask_inv",wandb_exp)
 
 
-    # mask_inv.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_inv_wide.csv")
-    # mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_wide.csv")
-    # mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_wide.csv")
-    # input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_wide.csv")
+    mask_inv.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_inv_wide.csv")
+    mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_wide.csv")
+    mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_wide.csv")
+    input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_wide.csv")
 
     print()
 
 
 
-
-
-
-
-    
 
 
 
