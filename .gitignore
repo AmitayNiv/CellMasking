@@ -15,5 +15,8 @@
 *data/*
 */data/
 */data/*
-
+*weights/
+*weights/*
+*/weights/
+*/weights/*
 

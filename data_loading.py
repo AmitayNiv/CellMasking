@@ -93,7 +93,9 @@ class Data:
 
             self.all_dataset = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
             
-            self.class_weights = 1./(torch.from_numpy(y_train.values).float().sum(dim=0))
+            # self.class_weights = 1./(torch.from_numpy(y_train.values).float().sum(dim=0))
+            logs = -torch.log(torch.from_numpy(y_train.values).float().mean(dim=0))
+            self.class_weights = 1/logs/(1/logs).sum()
         else:
             self.test_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
         
