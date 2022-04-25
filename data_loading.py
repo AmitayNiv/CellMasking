@@ -19,7 +19,7 @@ from collections import defaultdict
 
 
 
-main_folder_path = r"/media/data1/nivamitay/CellMasking/data/" 
+main_folder_path = r"/media/data1/nivamitay/CellMasking/data/singleCell" 
 
 class ClassifierDataset(Dataset):
     def __init__(self, X_data, y_data):

@@ -221,10 +221,11 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
         classifier.eval()
         for X_test_batch, y_test_batch in test_loader:
             X_test_batch, y_test_batch = X_test_batch.to(device), y_test_batch.to(device)
+            print(f"############### Results on {data_obj.data_name} ############################")
             print("Results without G")
             y_pred_score = classifier(X_test_batch)
-            test_score = evaluate(y_test_batch,y_pred_score)
-            print(test_score)
+            cls_test_score = evaluate(y_test_batch,y_pred_score)
+            print(cls_test_score)
             print("Results with G")
             mask_test = best_G_model(X_test_batch)
             cropped_features = X_test_batch * mask_test
@@ -236,7 +237,14 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             "G Test mAUPR":test_score["maupr"],"G Test wegAUPR":test_score["weight_aupr"],
             "G Test medAUPR":test_score["med_aupr"],"G Test Accuracy":test_score["accuracy"]
             })
-    return best_G_model
+        res_dict = {"Test mAUC":cls_test_score["mauc"],"Test medAUC":cls_test_score["med_auc"],
+            "Test mAUPR":cls_test_score["maupr"],"Test wegAUPR":cls_test_score["weight_aupr"],"Test medAUPR":cls_test_score["med_aupr"],
+            "Test Accuracy":cls_test_score["accuracy"],
+            "G Test mAUC":test_score["mauc"],"G Test medAUC":test_score["med_auc"],
+            "G Test mAUPR":test_score["maupr"],"G Test wegAUPR":test_score["weight_aupr"],
+            "G Test medAUPR":test_score["med_aupr"],"G Test Accuracy":test_score["accuracy"]
+            }
+    return best_G_model, res_dict
 
 
 def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
@@ -256,7 +264,7 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
         model = model.to(device)
     criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor, epochs=args.cls_epochs)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
 
 
 
@@ -356,6 +364,9 @@ def train_xgb(data_obj,device):
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)
     print(test_score)
-    return xgb_cl
+    res_dict = {"XGB mAUC":test_score["mauc"],"XGB medAUC":test_score["med_auc"],
+            "XGB mAUPR":test_score["maupr"],"XGB wegAUPR":test_score["weight_aupr"],"XGB medAUPR":test_score["med_aupr"],
+            "XGB Accuracy":test_score["accuracy"]}
+    return xgb_cl,res_dict
 
 

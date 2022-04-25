@@ -24,7 +24,7 @@ def evaluate(y_test, y_pred_score):
             auprs.append(aupr)
         
 
-        auc = metrics.roc_auc_score(y_test, y_pred_score.detach().cpu(),multi_class='ovr')
+        # auc = metrics.roc_auc_score(y_test, y_pred_score.detach().cpu(),multi_class='ovr')
         auprs_weighted = metrics.average_precision_score(y_test, y_pred_score.detach().cpu(),average="weighted")
         
         # f1 = metrics.f1_score(y_test, y_pred,average='macro')
@@ -42,7 +42,7 @@ def evaluate(y_test, y_pred_score):
         score['maupr'] = np.nanmean(auprs)
         score['weight_aupr'] = auprs_weighted
         score['med_aupr'] = np.nanmedian(auprs)
-        assert auc == score['mauc']
+        # assert auc == score['mauc']
         # assert auprs_weighted == score['maupr']
         # score['recall'] = recall
         return score
