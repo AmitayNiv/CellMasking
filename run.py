@@ -5,8 +5,8 @@ import torch
 import wandb
 from data_loading import Data,ImmunData
 from test import test,test_xgb
-from train import train_G, train_classifier,train_xgb,train_H
-from utils import get_mask,init_models
+from train import train_G, train_classifier,train_xgb,train_H,train_f2
+from utils import get_mask,init_models,features_f_corelation
 from visualization import visulaize_tsne
 import os
 
@@ -61,7 +61,7 @@ def run(args):
 
     # data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
     first = True
-    for f in os.scandir(r"/media/data1/nivamitay/CellMasking/data/singleCell/"):
+    for i,f in enumerate(os.scandir(r"/media/data1/nivamitay/CellMasking/data/singleCell/")):
         if f.name == 'features.csv':
             continue
         if args.data_type == "immunai":
@@ -82,13 +82,22 @@ def run(args):
             torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
 
 
-        # args.cls_epochs=80
-        # args.batch_factor=1
-        # args.cls_lr=0.002
-        # h_cls =  train_H(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None)
+        args.cls_epochs=10
+        args.batch_factor=4
+        args.weight_decay=5e-4
+        args.dropout=0.2
+        args.cls_lr = 0.002
+        h_cls,h_res_dict=  train_H(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None)
+        f2,f2_c_res_dict = train_f2(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None,concat=True)
+        f2,f2_res_dict = train_f2(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None,concat=False)
+        # features_f_corelation(args,device,data_obj=data,g_model=g_model,cls=cls)
+        # print()
         
         # test(cls,g_model=g_model,device=device,data_obj=data_test)
         xgb_cls,xgb_res_dict = train_xgb(data,device)
+        res_dict.update(f2_c_res_dict)
+        res_dict.update(f2_res_dict)
+        res_dict.update(h_res_dict)
         res_dict.update(xgb_res_dict)
         if first:
             res_df = pd.DataFrame(res_dict, index=[data.data_name])
@@ -115,7 +124,7 @@ def run(args):
     # mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_wide.csv")
     # input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_wide.csv")
 
-    print()
+    # print()
 
 
 

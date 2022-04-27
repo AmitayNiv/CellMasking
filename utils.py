@@ -4,7 +4,8 @@ from torch.utils.data import DataLoader
 import pandas as pd
 import numpy as np
 from models import Classifier, G_Model
-
+import matplotlib.pyplot as plt
+import copy
 
 def get_mask(g_model,data_obj,args,device):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset),shuffle=False)
@@ -57,4 +58,40 @@ def init_models(args,data,device):
         g_model = g_model.to(device)
 
     return cls,g_model
+    
+
+def features_f_corelation(args,device,data_obj,g_model,cls):
+    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=1,shuffle=False)
+    with torch.no_grad():
+        g_model.eval()
+        cls.eval()
+        j=0
+        g_scroe = []
+        pred_diff = []
+        for X_batch, y_batch in dataset_loader:
+            j+=1
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+
+            mask = g_model(X_batch)
+
+            for i in range(X_batch.shape[1]):
+                if X_batch[0,i]!=0:
+                    y_reg_pred = torch.softmax(cls(X_batch), dim = 1)
+                    first_label = y_reg_pred.argmax().item()
+                    y_reg_pred = y_reg_pred[0,first_label].item()
+                    X_batch_copy = copy.deepcopy(X_batch)
+                    X_batch_copy[0,i] = 0
+                    y_zer_pred = torch.softmax(cls(X_batch_copy), dim = 1)
+                    y_zer_pred = y_zer_pred[0,first_label].item()
+                    pred_diff.append(y_reg_pred-y_zer_pred)
+                    g_scroe.append(mask[0,i].item())
+            print(j)
+        plt.plot(pred_diff,g_scroe,"o")
+        plt.xlabel("prediction diff")
+        plt.ylabel("G score")
+        
+        plt.savefig(r"/media/data1/nivamitay/CellMasking/results/f_diff.png")
+
+
+    pass
         
