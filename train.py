@@ -25,7 +25,7 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
 
 
-    criterion = nn.CrossEntropyLoss()#(weight=data_obj.class_weights.to(device))
+    criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr,weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
 
@@ -122,7 +122,10 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
             wandb_exp.config.update({"Test mAUC":test_score["mauc"],"Test medAUC":test_score["med_auc"],
             "Test mAUPR":test_score["maupr"],"Test wegAUPR":test_score["weight_aupr"],"Test medAUPR":test_score["med_aupr"],"Test Accuracy":test_score["accuracy"]
             })
-    return best_model
+        res_dict = {"cls mAUC":test_score["mauc"],"cls medAUC":test_score["med_auc"],
+        "cls mAUPR":test_score["maupr"],"cls wegAUPR":test_score["weight_aupr"],"cls medAUPR":test_score["med_aupr"],
+        "cls Accuracy":test_score["accuracy"]}
+    return best_model,res_dict
 
 
 def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
@@ -139,9 +142,9 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
     val_loader = DataLoader(dataset=data_obj.val_dataset, batch_size=len(data_obj.val_dataset))
     test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
 
-    criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
+    criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer_G = optim.Adam(model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
+    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
 
 
     if args.wandb_exp:
@@ -150,7 +153,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
 
     global_step = 0
     for e in range(args.g_epochs):
-        classifier.eval()
+        # classifier.eval()
         # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.g_epochs}', unit='vec') as pbar:
         train_loss = 0
         loss_list = []
@@ -166,7 +169,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             if (global_step + 1) % args.batch_factor == 0:
                 optimizer_G.step()
                 optimizer_G.zero_grad(set_to_none=True)
-                scheduler.step()
+                scheduler_G.step()
             train_loss += loss.item()
 
             # pbar.update(X_train_batch.shape[0])
@@ -237,12 +240,10 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             "G Test mAUPR":test_score["maupr"],"G Test wegAUPR":test_score["weight_aupr"],
             "G Test medAUPR":test_score["med_aupr"],"G Test Accuracy":test_score["accuracy"]
             })
-        res_dict = {"Test mAUC":cls_test_score["mauc"],"Test medAUC":cls_test_score["med_auc"],
-            "Test mAUPR":cls_test_score["maupr"],"Test wegAUPR":cls_test_score["weight_aupr"],"Test medAUPR":cls_test_score["med_aupr"],
-            "Test Accuracy":cls_test_score["accuracy"],
-            "G Test mAUC":test_score["mauc"],"G Test medAUC":test_score["med_auc"],
-            "G Test mAUPR":test_score["maupr"],"G Test wegAUPR":test_score["weight_aupr"],
-            "G Test medAUPR":test_score["med_aupr"],"G Test Accuracy":test_score["accuracy"]
+        res_dict = {
+            "G mAUC":test_score["mauc"],"G medAUC":test_score["med_auc"],
+            "G mAUPR":test_score["maupr"],"G wegAUPR":test_score["weight_aupr"],
+            "G medAUPR":test_score["med_aupr"],"G Accuracy":test_score["accuracy"]
             }
     return best_G_model, res_dict
 
@@ -262,9 +263,12 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
     if model == None:
         model = Classifier(data_obj.n_features ,dropout=args.dropout,number_of_classes=data_obj.number_of_classes)
         model = model.to(device)
-    criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
+    criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
+    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
+    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
+
 
 
 
@@ -273,7 +277,7 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
     g_model.to(device)
     
     for e in range(args.cls_epochs):
-        g_model.eval()
+        g_model.train()
         model.train()
         train_loss = 0
         # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
@@ -293,6 +297,10 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
                 optimizer.step()
                 optimizer.zero_grad()
                 scheduler.step()
+
+                optimizer_G.step()
+                optimizer_G.zero_grad()
+                scheduler_G.step()
 
             
             train_loss += loss.item()
@@ -362,9 +370,9 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             print("Classifier test results:")
             print(test_score)
         res_dict = {
-            "H Test mAUC":test_score["mauc"],"H Test medAUC":test_score["med_auc"],
-            "H Test mAUPR":test_score["maupr"],"H Test wegAUPR":test_score["weight_aupr"],
-            "H Test medAUPR":test_score["med_aupr"],"H Test Accuracy":test_score["accuracy"]
+            "H mAUC":test_score["mauc"],"H medAUC":test_score["med_auc"],
+            "H mAUPR":test_score["maupr"],"H wegAUPR":test_score["weight_aupr"],
+            "H medAUPR":test_score["med_aupr"],"H Accuracy":test_score["accuracy"]
             }
     return best_model,res_dict
 
@@ -375,6 +383,7 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
     train_losses = []
     val_losses =[]
     best_model_auc = 0
+    g_model.to(device)
 
 
     train_loader = DataLoader(dataset=data_obj.train_dataset,batch_size=args.batch_size)
@@ -386,16 +395,19 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
         n_features = data_obj.n_features*2 if concat else data_obj.n_features
         model = Classifier(n_features ,dropout=args.dropout,number_of_classes=data_obj.number_of_classes)
         model = model.to(device)
-    criterion = nn.CrossEntropyLoss()#weight=data_obj.class_weights.to(device))
+    criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
+    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
+    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
 
 
     global_step = 0
-    g_model.to(device)
+
     
     for e in range(args.cls_epochs):
-        g_model.eval()
+        # g_model.eval()
+        g_model.train()
         model.train()
         train_loss = 0
         # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
@@ -417,6 +429,11 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                 optimizer.step()
                 optimizer.zero_grad()
                 scheduler.step()
+                
+                optimizer_G.step()
+                optimizer_G.zero_grad()
+                scheduler_G.step()
+                
 
             
             train_loss += loss.item()
@@ -490,15 +507,15 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             print(test_score)
             if concat:
                 res_dict = {
-                "F2_c Test mAUC":test_score["mauc"],"F2_c Test medAUC":test_score["med_auc"],
-                "F2_c Test mAUPR":test_score["maupr"],"F2_c Test wegAUPR":test_score["weight_aupr"],
-                "F2_c Test medAUPR":test_score["med_aupr"],"F2_c Test Accuracy":test_score["accuracy"]
+                "F2_c mAUC":test_score["mauc"],"F2_c medAUC":test_score["med_auc"],
+                "F2_c mAUPR":test_score["maupr"],"F2_c wegAUPR":test_score["weight_aupr"],
+                "F2_c medAUPR":test_score["med_aupr"],"F2_c Accuracy":test_score["accuracy"]
                 }
             else:
                 res_dict = {
-                "F2 Test mAUC":test_score["mauc"],"F2 Test medAUC":test_score["med_auc"],
-                "F2 Test mAUPR":test_score["maupr"],"F2 Test wegAUPR":test_score["weight_aupr"],
-                "F2 Test medAUPR":test_score["med_aupr"],"F2 Test Accuracy":test_score["accuracy"]
+                "F2 mAUC":test_score["mauc"],"F2 medAUC":test_score["med_auc"],
+                "F2 mAUPR":test_score["maupr"],"F2 wegAUPR":test_score["weight_aupr"],
+                "F2 medAUPR":test_score["med_aupr"],"F2 Accuracy":test_score["accuracy"]
                 }
     return best_model,res_dict
 
@@ -507,13 +524,14 @@ def train_xgb(data_obj,device):
     print("Start training XGBoost")
     xgb_cl = xgb.XGBClassifier(objective="multi:softproba")
     X_train = np.array(data_obj.train_dataset.X_data)
-    y_train = np.array(data_obj.train_dataset.y_data)
+    pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
+    y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
     y_train = np.argmax(y_train,axis=1)
     xgb_cl.fit(X_train, y_train)
 
     print(f"XGB Test Results on {data_obj.data_name}")
     X_test = np.array(data_obj.test_dataset.X_data)
-    y_test = np.array(data_obj.test_dataset.y_data)
+    y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
     y_pred_score =  xgb_cl.predict_proba(X_test)
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)

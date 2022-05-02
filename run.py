@@ -9,6 +9,7 @@ from train import train_G, train_classifier,train_xgb,train_H,train_f2
 from utils import get_mask,init_models,features_f_corelation
 from visualization import visulaize_tsne
 import os
+import copy
 
 CUDA_VISIBLE_DEVICES=4
 
@@ -16,7 +17,7 @@ class arguments(object):
    def __init__(self):
       self.seed = 3407
       self.cls_epochs = 10
-      self.g_epochs = 20
+      self.g_epochs = 10
       self.cls_lr = 0.002
       self.g_lr = 0.0002
       self.weight_decay=5e-4
@@ -62,18 +63,19 @@ def run(args):
     # data_test = Data(train_ratio=args.train_ratio,features=True,data_name='10X_pbmc_5k_nextgem.h5ad',test_set=True)
     first = True
     for i,f in enumerate(os.scandir(r"/media/data1/nivamitay/CellMasking/data/singleCell/")):
+        args = arguments()
         if f.name == 'features.csv':
             continue
         if args.data_type == "immunai":
             data = ImmunData(data_set="pbmc",genes_filter="narrow_subset",all_types=False)
         else:
-            data = Data(data_name=f.name,train_ratio=args.train_ratio,features=True)
+            data = Data(data_name=f.name,train_ratio=args.train_ratio,features=True,all_labels=True)
 
         cls,g_model = init_models(args=args,data=data,device=device)
-        cls = train_classifier(args,device=device,data_obj=data,model=cls,wandb_exp=wandb_exp)
+        cls,cls_res_dict = train_classifier(args,device=device,data_obj=data,model=cls,wandb_exp=wandb_exp)
         args.batch_factor=4
         args.weight_decay=0
-        g_model ,res_dict= train_G(args,device,data_obj=data,classifier=cls,model=g_model,wandb_exp=wandb_exp)
+        g_model ,g_res_dict= train_G(args,device,data_obj=data,classifier=cls,model=g_model,wandb_exp=wandb_exp)
 
 
         if args.save_cls_checkpoints:
@@ -83,34 +85,57 @@ def run(args):
 
 
         args.cls_epochs=10
-        args.batch_factor=4
+        args.g_epochs = 10
+        args.batch_factor=1
         args.weight_decay=5e-4
         args.dropout=0.2
         args.cls_lr = 0.002
-        h_cls,h_res_dict=  train_H(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None)
-        f2,f2_c_res_dict = train_f2(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None,concat=True)
-        f2,f2_res_dict = train_f2(args,device,data_obj=data,g_model=g_model,wandb_exp=None,model=None,concat=False)
+        g_model_copy_1 = copy.deepcopy(g_model)
+        g_model_copy_2 = copy.deepcopy(g_model)
+        g_model_copy_3 = copy.deepcopy(g_model)
+        f2,f2_c_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_1,wandb_exp=None,model=None,concat=True)
+        f2,f2_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_2,wandb_exp=None,model=None,concat=False)
+        h_cls,h_res_dict=  train_H(args,device,data_obj=data,g_model=g_model_copy_3,wandb_exp=None,model=None)
+        # xgb_cls,xgb_res_dict = train_xgb(data,device)
         # features_f_corelation(args,device,data_obj=data,g_model=g_model,cls=cls)
-        # print()
+        print()
+        print(f"############### Results on {data.data_name} ############################")
+        print("cls Results")
+        print(cls_res_dict)
+        print("G Results")
+        print(g_res_dict)
+        print("F2_C Results")
+        print(f2_c_res_dict)
+        print("F2 Results")
+        print(f2_res_dict)
+        print("H Results")
+        print(h_res_dict)
+        # print("XGB Results")
+        # print(xgb_res_dict)
+        print(f"#####################################################################")
         
         # test(cls,g_model=g_model,device=device,data_obj=data_test)
-        xgb_cls,xgb_res_dict = train_xgb(data,device)
-        res_dict.update(f2_c_res_dict)
-        res_dict.update(f2_res_dict)
-        res_dict.update(h_res_dict)
-        res_dict.update(xgb_res_dict)
+        
+        cls_res_dict.update(g_res_dict)
+        cls_res_dict.update(f2_c_res_dict)
+        cls_res_dict.update(f2_res_dict)
+        cls_res_dict.update(h_res_dict)
+        # cls_res_dict.update(xgb_res_dict)
         if first:
-            res_df = pd.DataFrame(res_dict, index=[data.data_name])
+            res_df = pd.DataFrame(cls_res_dict, index=[data.data_name])
             first = False
         else:
-            single_res_df = pd.DataFrame(res_dict, index=[data.data_name])
+            single_res_df = pd.DataFrame(cls_res_dict, index=[data.data_name])
             res_df = pd.concat([res_df, single_res_df])
+        
+
+
     
-    res_df.to_csv(r"/media/data1/nivamitay/CellMasking/results/res_df.csv")
+    res_df.to_csv(r"/media/data1/nivamitay/CellMasking/results/res_df_iter2.csv")
 
         # test_xgb(xgb_cls,data_test,device)
 
-    # mask_df,mask_x_df,input_df,mask_inv = get_mask(g_model,data,args,device)
+    #mask_df,mask_x_df,input_df,mask_inv = get_mask(g_model,data,args,device)
 
 
     # visulaize_tsne(mask_df,"mask_df",wandb_exp)

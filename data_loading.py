@@ -34,7 +34,7 @@ class ClassifierDataset(Dataset):
 
 
 class Data:
-    def __init__(self, data_name ='10X_pbmc_5k_v3.h5ad' ,train_ratio=0.8,features=True,test_set=False):
+    def __init__(self, data_name ='10X_pbmc_5k_v3.h5ad' ,train_ratio=0.8,features=True,test_set=False,all_labels=False):
         self.full_data = sc.read(os.path.join(main_folder_path,data_name))
         self.colnames = self.full_data.var.index
         self.rownames = self.full_data.obs.index
@@ -69,7 +69,11 @@ class Data:
         cell_type_col = "cell_type_l2"
         self.named_labels = self.full_data.obs[cell_type_col]
 
-        self.labels = pd.get_dummies(self.named_labels)[np.unique(self.named_labels.values)]
+        self.labels = pd.get_dummies(self.named_labels)
+        if not all_labels:
+            self.labels = self.labels[np.sort(np.unique(self.named_labels.values))]
+
+            
 
         self.number_of_classes = self.labels.shape[1]
         self.n_features = len(self.colnames)
