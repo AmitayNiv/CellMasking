@@ -429,7 +429,7 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                 optimizer.step()
                 optimizer.zero_grad()
                 scheduler.step()
-                
+
                 optimizer_G.step()
                 optimizer_G.zero_grad()
                 scheduler_G.step()

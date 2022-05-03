@@ -84,7 +84,7 @@ def run(args):
             torch.save(g_model,r"/media/data1/nivamitay/CellMasking/weights/g_model.pt")
 
 
-        args.cls_epochs=10
+        args.cls_epochs = 10
         args.g_epochs = 10
         args.batch_factor=1
         args.weight_decay=5e-4
@@ -96,7 +96,7 @@ def run(args):
         f2,f2_c_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_1,wandb_exp=None,model=None,concat=True)
         f2,f2_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_2,wandb_exp=None,model=None,concat=False)
         h_cls,h_res_dict=  train_H(args,device,data_obj=data,g_model=g_model_copy_3,wandb_exp=None,model=None)
-        # xgb_cls,xgb_res_dict = train_xgb(data,device)
+        xgb_cls,xgb_res_dict = train_xgb(data,device)
         # features_f_corelation(args,device,data_obj=data,g_model=g_model,cls=cls)
         print()
         print(f"############### Results on {data.data_name} ############################")
@@ -110,8 +110,8 @@ def run(args):
         print(f2_res_dict)
         print("H Results")
         print(h_res_dict)
-        # print("XGB Results")
-        # print(xgb_res_dict)
+        print("XGB Results")
+        print(xgb_res_dict)
         print(f"#####################################################################")
         
         # test(cls,g_model=g_model,device=device,data_obj=data_test)
@@ -131,7 +131,7 @@ def run(args):
 
 
     
-    res_df.to_csv(r"/media/data1/nivamitay/CellMasking/results/res_df_iter2.csv")
+    res_df.to_csv(r"/media/data1/nivamitay/CellMasking/results/res_df_iter5.csv")
 
         # test_xgb(xgb_cls,data_test,device)
 
