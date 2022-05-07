@@ -7,6 +7,7 @@ import seaborn as sns
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from pkg_resources import safe_name
+import umap
 
 
 def visulaize_tsne(data_set,data_set_name,wandb_exp):
@@ -15,7 +16,7 @@ def visulaize_tsne(data_set,data_set_name,wandb_exp):
     # df_path = os.path.join(res_folder_path,data_set_name_csv)
     # data_set = pd.read_csv(df_path,index_col=0)
 
-    feat_cols = data_set.columns[1:-3]
+    feat_cols = data_set.columns[1:-2]
 
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=1000)
 
@@ -154,6 +155,44 @@ def visulaize_2d_var():
         plt.savefig(r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results\plots\var\{}.png'.format(i))
     plt.cla()
     plt.close("all")
+
+
+def visulaize_umap(data_set,table_name,data_name):
+    feat_cols = data_set.columns[1:-2]
+    reducer = umap.UMAP(random_state=42)
+    
+    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
+    data_subset = current_data_set[feat_cols].values
+
+    reducer.fit(data_subset)
+    embedding = reducer.transform(data_subset)
+    
+    current_data_set['embedding_0'] = embedding[:,0]
+    current_data_set['embedding_1'] = embedding[:,1]
+
+    # plt.figure()
+    # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
+    # plt.gca().set_aspect('equal', 'datalim')
+    # plt.colorbar()#boundaries=np.arange(11)-0.5).set_ticks(np.arange(10))
+    # plt.title(f'UMAP projection of the {data_set_name}', fontsize=24)
+    plt.figure(figsize=(16,10))
+    sns.scatterplot(
+        x='embedding_0', y='embedding_1',
+        hue="label",
+        palette=sns.color_palette("hls",15),
+        data=current_data_set,
+        legend="full",
+        alpha=0.3)
+    plt.title(f'UMAP projection of the {table_name}', fontsize=16)
+
+
+    data_set_name_png =f"{table_name}_umap.png"
+    res_folder_path = f"./results/{data_name}/"
+    plt.savefig(os.path.join(res_folder_path,data_set_name_png))
+
+    plt.cla()
+    plt.close("all")
+
 
 if __name__ == '__main__':
     visulaize_tsne("mask")

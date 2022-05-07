@@ -153,7 +153,7 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
 
     global_step = 0
     for e in range(args.g_epochs):
-        # classifier.eval()
+        classifier.eval()
         # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.g_epochs}', unit='vec') as pbar:
         train_loss = 0
         loss_list = []
@@ -350,18 +350,19 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
                 print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
                 # torch.save(model,best_model_path)
                 best_model = copy.deepcopy(model)
+                best_g = copy.deepcopy(g_model)
             # scheduler.step(val_score["auc"])
 
     best_model = best_model.to(device)
     with torch.no_grad():
         best_model.eval()
-        g_model.eval()
+        best_g.eval()
         for X_test_batch, y_test_batch in test_loader:
             X_test_batch, y_test_batch = X_test_batch.to(device), y_test_batch.to(device)
 
             X_test_batch_bin = torch.where(X_test_batch>0, 1, -1)
 
-            mask = g_model(X_test_batch)
+            mask = best_g(X_test_batch)
 
             cropped_features = X_test_batch_bin*mask
 
@@ -374,11 +375,11 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             "H mAUPR":test_score["maupr"],"H wegAUPR":test_score["weight_aupr"],
             "H medAUPR":test_score["med_aupr"],"H Accuracy":test_score["accuracy"]
             }
-    return best_model,res_dict
+    return best_model,best_g,res_dict
 
 
 
-def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False):
+def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False,woG=False):
     print("\nStart training F2 classifier")
     train_losses = []
     val_losses =[]
@@ -418,7 +419,10 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             cropped_features = X_train_batch*mask
             if concat:
                 X_train_batch_bin = torch.where(X_train_batch==0, 1, 0)
-                cropped_features_neg = X_train_batch_bin *mask
+                if woG:
+                    cropped_features_neg = X_train_batch_bin
+                else:
+                    cropped_features_neg = X_train_batch_bin *mask
                 cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
             y_train_pred = model(cropped_features)
             loss = criterion(y_train_pred, y_train_batch)
@@ -484,17 +488,17 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                 print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
                 # torch.save(model,best_model_path)
                 best_model = copy.deepcopy(model)
+                best_g = copy.deepcopy(g_model)
             # scheduler.step(val_score["auc"])
 
     best_model = best_model.to(device)
     with torch.no_grad():
         best_model.eval()
-        g_model.eval()
+        best_g.eval()
         for X_test_batch, y_test_batch in test_loader:
             X_test_batch, y_test_batch = X_test_batch.to(device), y_test_batch.to(device)
 
-            mask = g_model(X_test_batch)
-
+            mask = best_g(X_test_batch)
             cropped_features = X_test_batch*mask
             if concat:
                 X_test_batch_bin = torch.where(X_test_batch==0, 1, 0)
@@ -505,19 +509,17 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             test_score = evaluate(y_test_batch, y_pred_score)
             print("Classifier test results:")
             print(test_score)
-            if concat:
-                res_dict = {
-                "F2_c mAUC":test_score["mauc"],"F2_c medAUC":test_score["med_auc"],
-                "F2_c mAUPR":test_score["maupr"],"F2_c wegAUPR":test_score["weight_aupr"],
-                "F2_c medAUPR":test_score["med_aupr"],"F2_c Accuracy":test_score["accuracy"]
-                }
-            else:
-                res_dict = {
-                "F2 mAUC":test_score["mauc"],"F2 medAUC":test_score["med_auc"],
-                "F2 mAUPR":test_score["maupr"],"F2 wegAUPR":test_score["weight_aupr"],
-                "F2 medAUPR":test_score["med_aupr"],"F2 Accuracy":test_score["accuracy"]
-                }
-    return best_model,res_dict
+            model_name = "F2"
+            if concat: 
+                model_name+="_c"
+            if woG:
+                model_name+="marker_zero"
+            res_dict = {
+            f"{model_name} mAUC":test_score["mauc"],f"{model_name} medAUC":test_score["med_auc"],
+            f"{model_name} mAUPR":test_score["maupr"],f"{model_name} wegAUPR":test_score["weight_aupr"],
+            f"{model_name} medAUPR":test_score["med_aupr"],f"{model_name} Accuracy":test_score["accuracy"]
+            }
+    return best_model,best_g,res_dict
 
 
 def train_xgb(data_obj,device):

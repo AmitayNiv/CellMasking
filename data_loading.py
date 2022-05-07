@@ -19,7 +19,7 @@ from collections import defaultdict
 
 
 
-main_folder_path = r"/media/data1/nivamitay/CellMasking/data/singleCell" 
+# main_folder_path = r"/media/data1/nivamitay/CellMasking/data/singleCell" 
 
 class ClassifierDataset(Dataset):
     def __init__(self, X_data, y_data):
@@ -35,14 +35,13 @@ class ClassifierDataset(Dataset):
 
 class Data:
     def __init__(self, data_name ='10X_pbmc_5k_v3.h5ad' ,train_ratio=0.8,features=True,test_set=False,all_labels=False):
-        self.full_data = sc.read(os.path.join(main_folder_path,data_name))
+        self.full_data = sc.read(data_name.path)
         self.colnames = self.full_data.var.index
         self.rownames = self.full_data.obs.index
-        self.data_name = data_name
+        self.data_name = data_name.name[:-5]
 
         if features:
-            self.features = pd.read_csv(os.path.join(main_folder_path,'features.csv'),index_col=0)['0']
-            
+            self.features = pd.read_csv('./data/singleCell/features.csv',index_col=0)['0']
         else:
             self.features = self.colnames
 
@@ -104,13 +103,13 @@ class Data:
             self.test_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
         
 
-        print(f"Loading {data_name} dataset:\n Total {self.labels.shape[0]} samples, {data.shape[1]} features\n\
+        print(f"Loading {self.data_name} dataset:\n Total {self.labels.shape[0]} samples, {data.shape[1]} features\n\
             {len(np.unique(self.named_labels.values))} labels: { np.unique(self.named_labels.values)}")
         
         
         if not test_set:
             print(f"X_train:{x_train.shape[0]} samples || X_val:{x_validation.shape[0]} samples || X_test:{x_test.shape[0]} samples")
-            print(f"Class weights: {self.class_weights}")
+            # print(f"Class weights: {self.class_weights}")
 
 
         
@@ -121,9 +120,9 @@ class Data:
 
 class ImmunData:
     def __init__(self,data_set = None,genes_filter="all",test_set=False,all_types = False):
-        self.single_cell_dir = os.path.join(main_folder_path,'immunai/single-cell')
-        self.cell_type_hierarchy = pd.read_csv(os.path.join(main_folder_path,'immunai/cell_types.csv'))
-        self.genes = pd.read_csv(os.path.join(main_folder_path,'immunai/genes.csv.gz'), index_col='gene_index')
+        self.single_cell_dir = './data/immunai/single-cell'
+        self.cell_type_hierarchy = pd.read_csv('./data/immunai/cell_types.csv')
+        self.genes = pd.read_csv('./data/immunai/genes.csv.gz', index_col='gene_index')
         self.data_set = data_set
         self.all_types = all_types
         self.meta_cols = ['cell_id', 'project_id', 'sequencing_batch_id', 'lane_id', 'hashtag', 'test_set', 'tissue_type', 'cell_type']
