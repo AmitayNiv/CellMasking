@@ -10,7 +10,7 @@ from pkg_resources import safe_name
 import umap
 
 
-def visulaize_tsne(data_set,data_set_name,wandb_exp):
+def visulaize_tsne(data_set,table_name,data_name,wandb_exp=None):
     # data_set_name_csv =data_set_name+".csv"
     # res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
     # df_path = os.path.join(res_folder_path,data_set_name_csv)
@@ -20,26 +20,29 @@ def visulaize_tsne(data_set,data_set_name,wandb_exp):
 
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=1000)
 
-    for i in range(int(data_set["y"].values.max())+1):
-        current_data_set = data_set[data_set["y"]==float(i)]
-        data_subset = current_data_set[feat_cols].values
+    # for i in range(int(data_set["y"].values.max())+1):
+    current_data_set = data_set#[data_set["y"]==float(i)]
+    data_subset = current_data_set[feat_cols].values
 
-        tsne_results = tsne.fit_transform(data_subset)
-        current_data_set['tsne-2d-one'] = tsne_results[:,0]
-        current_data_set['tsne-2d-two'] = tsne_results[:,1]
+    tsne_results = tsne.fit_transform(data_subset)
+    current_data_set['tsne-2d-one'] = tsne_results[:,0]
+    current_data_set['tsne-2d-two'] = tsne_results[:,1]
 
 
-        fig, ax = plt.subplots(figsize=(16,10))
-        sns.scatterplot(
-        x="tsne-2d-one", y="tsne-2d-two",
-        hue="y",
-        palette=sns.color_palette("hls",len(np.unique(current_data_set["y"].values))),
-        data=current_data_set,
-        legend="full",
-        alpha=0.3).set(title=f"{data_set_name} | label:{i} |#samples:{current_data_set.shape[0]}")
-        # data_set_name_png =f"{i}_{data_set_name}_tSNE.png"
+    fig, ax = plt.subplots(figsize=(16,10))
+    sns.scatterplot(
+    x="tsne-2d-one", y="tsne-2d-two",
+    hue="label",
+    palette=sns.color_palette("hls",15),
+    data=current_data_set,
+    legend="full",
+    alpha=0.3).set(title=f"{table_name}|{data_name}|#samples:{current_data_set.shape[0]}")
+    data_set_name_png =f"tsne_{table_name}.png"
+    res_folder_path = f"./results/{data_name}/"
+    plt.savefig(os.path.join(res_folder_path,data_set_name_png))
+
         # plt.savefig(os.path.join(res_folder_path,r"plots\tsne",data_set_name_png))
-        wandb_exp.log({f"{data_set_name} | label:{i} |#samples:{current_data_set.shape[0]}":fig})
+        # wandb_exp.log({f"{table_name} | label:{i} |#samples:{current_data_set.shape[0]}":fig})
     plt.cla()
     plt.close("all")
 
@@ -161,7 +164,7 @@ def visulaize_umap(data_set,table_name,data_name):
     feat_cols = data_set.columns[1:-2]
     reducer = umap.UMAP(random_state=42)
     
-    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
+    current_data_set = data_set.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
     data_subset = current_data_set[feat_cols].values
 
     reducer.fit(data_subset)
@@ -170,11 +173,7 @@ def visulaize_umap(data_set,table_name,data_name):
     current_data_set['embedding_0'] = embedding[:,0]
     current_data_set['embedding_1'] = embedding[:,1]
 
-    # plt.figure()
-    # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
-    # plt.gca().set_aspect('equal', 'datalim')
-    # plt.colorbar()#boundaries=np.arange(11)-0.5).set_ticks(np.arange(10))
-    # plt.title(f'UMAP projection of the {data_set_name}', fontsize=24)
+
     plt.figure(figsize=(16,10))
     sns.scatterplot(
         x='embedding_0', y='embedding_1',
@@ -183,10 +182,10 @@ def visulaize_umap(data_set,table_name,data_name):
         data=current_data_set,
         legend="full",
         alpha=0.3)
-    plt.title(f'UMAP projection of the {table_name}', fontsize=16)
+    plt.title(f'UMAP projection of the {table_name}| dataset:{data_name}', fontsize=16)
 
 
-    data_set_name_png =f"{table_name}_umap.png"
+    data_set_name_png =f"umap_{table_name}.png"
     res_folder_path = f"./results/{data_name}/"
     plt.savefig(os.path.join(res_folder_path,data_set_name_png))
 

@@ -8,7 +8,7 @@ import wandb
 from data_loading import Data,ImmunData
 from test import test,test_xgb
 from train import train_G, train_classifier,train_xgb,train_H,train_f2
-from utils import get_mask,init_models,features_f_corelation,load_datasets_list,save_weights
+from utils import get_mask,init_models,features_f_corelation,load_datasets_list,save_weights,load_weights
 from visualization import visulaize_tsne, visulaize_umap
 import os
 import copy
@@ -33,10 +33,34 @@ class arguments(object):
       self.save_weights = True
       self.iterations = 1
       self.working_models = {"F":True,"g":True,"F2":True,"F2_c":True,"H":False,"XGB":False}
-    #   self.main_folder_path = r"/media/data1/nivamitay/CellMasking/" 
 
 
+def run_masks_and_vis(args):
+    ## Init random seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
+    ## Conecting to device
+    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+    if device != 'cpu':
+        torch.cuda.empty_cache()
+    print(f'Using device {device}')
+    datasets_list = load_datasets_list(args)
+    for i,f in enumerate(datasets_list):
+        data = Data(data_name=f,train_ratio=args.train_ratio,features=True,all_labels=True)
+        print(f"Masking dataset:{data.data_name}")
+        if not os.path.exists(f"./results/{data.data_name}/"):
+            os.mkdir(f"./results/{data.data_name}/")
+        _,g_model_copy_f2_c = load_weights(data,device,"F2_c")
+        mask_df,mask_x_df,input_df = get_mask(g_model_copy_f2_c,data,args,device)
+        visulaize_umap(copy.deepcopy(mask_df),"mask_df",data.data_name)
+        visulaize_umap(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
+        visulaize_umap(copy.deepcopy(input_df),"input_df",data.data_name)
+
+        visulaize_tsne(copy.deepcopy(mask_df),"mask_df",data.data_name)
+        visulaize_tsne(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
+        visulaize_tsne(copy.deepcopy(input_df),"input_df",data.data_name)
 
 
 def run(args):
@@ -78,7 +102,7 @@ def run(args):
             #     data = ImmunData(data_set="pbmc",genes_filter="narrow_subset",all_types=False)
             # else:
             data = Data(data_name=f,train_ratio=args.train_ratio,features=True,all_labels=True)
-            print(f"Training iteration:{j} dataset:{f.name}")
+            print(f"Training iteration:{j} dataset:{data.data_name}")
             
             if args.working_models["F"] or args.working_models["g"]:
                 cls,g_model = init_models(args=args,data=data,device=device)
@@ -127,28 +151,29 @@ def run(args):
                 res_dict.update(xgb_res_dict)
                 res_prints+="\nXGB Resutls\n"
                 res_prints+=str(xgb_res_dict)
-                
-                # if args.save_weights:
-                #     save_weights(cls=h,g=g_model_copy_H,data=data,base="H")
-                            
+                if args.save_weights:
+                    save_weights(cls=xgb_cls,g=None,data=data,base="XGB")
+            
+
+            # mask_df,mask_x_df,input_df = get_mask(g_model_copy_f2_c,data,args,device)
+            # visulaize_umap(copy.deepcopy(mask_df),"mask_df",data.data_name)
+            # visulaize_umap(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
+            # visulaize_umap(copy.deepcopy(input_df),"input_df",data.data_name)
+
+            # visulaize_tsne(copy.deepcopy(mask_df),"mask_df",data.data_name)
+            # visulaize_tsne(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
+            # visulaize_tsne(copy.deepcopy(input_df),"input_df",data.data_name)
 
             print(f"############### Results on {data.data_name} ############################")
             print(res_prints)
             print(f"#####################################################################")
             
 
-            # mask_df,mask_x_df,input_df = get_mask(g_model_copy_1,data,args,device)
-            # visulaize_umap(mask_df,f"{f.name}_mask_df",wandb_exp)
-            # visulaize_umap(mask_x_df,f"{f.name}_mask_x_df",wandb_exp)
-            # visulaize_umap(input_df,f"{f.name}_input_df",wandb_exp)
-
-
-
             if first_iteration:
-                single_data_res_df = pd.DataFrame(cls_res_dict, index=[data.data_name])
+                single_data_res_df = pd.DataFrame(res_dict, index=[data.data_name])
                 first_iteration = False
             else:
-                single_res_df = pd.DataFrame(cls_res_dict, index=[data.data_name])
+                single_res_df = pd.DataFrame(res_dict, index=[data.data_name])
                 single_data_res_df = pd.concat([single_data_res_df, single_res_df])
             time_diff = datetime.timedelta(seconds=time()-iter_time)
             print("{}: iteration #{} took {}".format(data.data_name,j+1,time_diff))
@@ -170,28 +195,10 @@ def run(args):
     time_diff = datetime.timedelta(seconds=time()-global_time)
     print("All training took: {}".format(time_diff))   
     print(f"#################################")  
-    full_resutls_df.to_csv(r"./results/res_df_iter7.csv")
-    # mean_resutls_df.to_csv(r"/media/data1/nivamitay/CellMasking/results/mean_results_df.csv")
-
-    #     # test_xgb(xgb_cls,data_test,device)
-
-    #mask_df,mask_x_df,input_df = get_mask(g_model,data,args,device)
-
-
-    # visulaize_tsne(mask_df,"mask_df",wandb_exp)
-    # visulaize_tsne(mask_x_df,"mask_x_df",wandb_exp)
-    # visulaize_tsne(input_df,"input_df",wandb_exp)
-
-
-    # mask_inv.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_inv_wide.csv")
-    # mask_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_wide.csv")
-    # mask_x_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/mask_x_wide.csv")
-    # input_df.to_csv( r"/media/data1/nivamitay/CellMasking/results/input_wide.csv")
-
-    # print()
-
-
-
+    time_for_file = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    full_resutls_df.to_csv(f"./results/{time_for_file}_full_res_df.csv")
+    if args.iterations>1:
+        mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
 
 
 

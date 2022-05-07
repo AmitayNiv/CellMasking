@@ -33,15 +33,13 @@ def get_mask(g_model,data_obj,args,device):
 
 
     mask_df["label"]= mask_x_df["label"] = input_df["label"] = data_obj.named_labels.values
-    # mask_df["label_2"]= mask_x_df["label_2"] = input_df["label_2"] =data_obj.named_labels_2.values
 
     return mask_df,mask_x_df,input_df
 
 
 def init_models(args,data,device,base = ""):
-    base = base+"_" if base != "" else base
     if args.load_pretraind_weights:
-        cls,g_model = load_weights(cls,g_model)
+        cls,g_model = load_weights(data,device,base)
     else:
         print("Initializing classifier")
         cls = Classifier(data.n_features ,dropout=args.dropout,number_of_classes=data.number_of_classes,first_division=2)
@@ -82,7 +80,7 @@ def features_f_corelation(args,device,data_obj,g_model,cls):
         plt.xlabel("prediction diff")
         plt.ylabel("G score")
         
-        plt.savefig(r"/media/data1/nivamitay/CellMasking/results/f_diff.png")
+        plt.savefig(r"./results/f_diff.png")
 
 
     pass
@@ -100,18 +98,24 @@ def load_datasets_list(args):
 
 
 def save_weights(cls,g,data,base = ""):
-    base = base+"_" if base != "" else base
+    base_print = base+"_" if base != "" else base
     if not os.path.exists(f"./weights/{data.data_name}/"):
         os.mkdir(f"./weights/{data.data_name}/")
-    torch.save(cls,f"./weights/{data.data_name}/{base}cls.pt")
-    torch.save(g,f"./weights/{data.data_name}/{base}g.pt")
+    if base=="XGB":
+        cls.save_model(f"./weights/{data.data_name}/{base}.json")
+    else:
+        torch.save(cls,f"./weights/{data.data_name}/{base_print}cls.pt")
+        torch.save(g,f"./weights/{data.data_name}/{base_print}g.pt")
     print(f"{base} Models was saved to ./weights/{data.data_name}")
 
 
 def load_weights(data,device,base = ""):
-    print("Loading pre-trained weights for classifier")
-    cls = torch.load(f"./weights/{data.data_name}/{base}cls.pt").to(device)
-    print("Loading pre-trained weights for G model")
-    g_model = torch.load(f"./weights/{data.data_name}/{base}g.pt").to(device)
+    base_print = base+"_" if base != "" else base
+    # if base =="XGB":
+    #     cls.save_model(f"./weights/{data.data_name}/{base}.json")
+    print(f"Loading pre-trained weights for {base} classifier")
+    cls = torch.load(f"./weights/{data.data_name}/{base_print}cls.pt").to(device)
+    print(f"Loading pre-trained weights for {base} G model")
+    g_model = torch.load(f"./weights/{data.data_name}/{base_print}g.pt").to(device)
     return cls,g_model
 

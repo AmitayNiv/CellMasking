@@ -269,10 +269,6 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
     optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
     scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
 
-
-
-
-
     global_step = 0
     g_model.to(device)
     
@@ -459,7 +455,10 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                     cropped_features = X_val_batch*mask
                     if concat:
                         X_val_batch_bin = torch.where(X_val_batch==0, 1, 0)
-                        cropped_features_neg = X_val_batch_bin *mask
+                        if woG:
+                            cropped_features_neg = X_val_batch_bin
+                        else:
+                            cropped_features_neg = X_val_batch_bin *mask
                         cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
                     y_val_pred = model(cropped_features)
 
@@ -502,7 +501,10 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             cropped_features = X_test_batch*mask
             if concat:
                 X_test_batch_bin = torch.where(X_test_batch==0, 1, 0)
-                cropped_features_neg = X_test_batch_bin *mask
+                if woG:
+                    cropped_features_neg = X_test_batch_bin
+                else:
+                    cropped_features_neg = X_test_batch_bin *mask
                 cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
 
             y_pred_score = best_model(cropped_features)
