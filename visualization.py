@@ -21,7 +21,7 @@ def visulaize_tsne(data_set,table_name,data_name,wandb_exp=None):
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=1000)
 
     # for i in range(int(data_set["y"].values.max())+1):
-    current_data_set = data_set#[data_set["y"]==float(i)]
+    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
     data_subset = current_data_set[feat_cols].values
 
     tsne_results = tsne.fit_transform(data_subset)
@@ -161,10 +161,11 @@ def visulaize_2d_var():
 
 
 def visulaize_umap(data_set,table_name,data_name):
+    print(f'Craeting UMAP projection of the {table_name}| dataset:{data_name}')
     feat_cols = data_set.columns[1:-2]
     reducer = umap.UMAP(random_state=42)
     
-    current_data_set = data_set.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
+    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
     data_subset = current_data_set[feat_cols].values
 
     reducer.fit(data_subset)
@@ -182,6 +183,10 @@ def visulaize_umap(data_set,table_name,data_name):
         data=current_data_set,
         legend="full",
         alpha=0.3)
+    # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
+    # plt.gca().set_aspect('equal', 'datalim')
+    # plt.colorbar()
+    # plt.title('UMAP projection of the Digits dataset', fontsize=24);
     plt.title(f'UMAP projection of the {table_name}| dataset:{data_name}', fontsize=16)
 
 

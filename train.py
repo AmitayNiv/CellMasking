@@ -376,7 +376,12 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
 
 
 def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False,woG=False):
-    print("\nStart training F2 classifier")
+    model_name = "F2"
+    if concat: 
+        model_name+="_c"
+    if woG:
+        model_name+="marker_zero"
+    print(f"\nStart training {model_name} classifier")
     train_losses = []
     val_losses =[]
     best_model_auc = 0
@@ -511,11 +516,6 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             test_score = evaluate(y_test_batch, y_pred_score)
             print("Classifier test results:")
             print(test_score)
-            model_name = "F2"
-            if concat: 
-                model_name+="_c"
-            if woG:
-                model_name+="marker_zero"
             res_dict = {
             f"{model_name} mAUC":test_score["mauc"],f"{model_name} medAUC":test_score["med_auc"],
             f"{model_name} mAUPR":test_score["maupr"],f"{model_name} wegAUPR":test_score["weight_aupr"],

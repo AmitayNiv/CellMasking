@@ -61,6 +61,7 @@ def run_masks_and_vis(args):
         visulaize_tsne(copy.deepcopy(mask_df),"mask_df",data.data_name)
         visulaize_tsne(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
         visulaize_tsne(copy.deepcopy(input_df),"input_df",data.data_name)
+    print()
 
 
 def run(args):
@@ -154,7 +155,8 @@ def run(args):
                 if args.save_weights:
                     save_weights(cls=xgb_cls,g=None,data=data,base="XGB")
             
-
+            # if not os.path.exists(f"./results/{data.data_name}/"):
+            #     os.mkdir(f"./results/{data.data_name}/")
             # mask_df,mask_x_df,input_df = get_mask(g_model_copy_f2_c,data,args,device)
             # visulaize_umap(copy.deepcopy(mask_df),"mask_df",data.data_name)
             # visulaize_umap(copy.deepcopy(mask_x_df),"mask_x_df",data.data_name)
@@ -204,4 +206,4 @@ def run(args):
 
 if __name__ == '__main__':
     args = arguments()
-    run(args)
+    run_masks_and_vis(args)
