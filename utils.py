@@ -7,18 +7,56 @@ from models import Classifier, G_Model
 import matplotlib.pyplot as plt
 import copy
 import os
+import joblib
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
 
-def get_mask(g_model,data_obj,args,device):
-    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset),shuffle=False)
+def get_mask(g_model,data_obj,args,device,bin_mask=False):
+    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
     cols = list(data_obj.colnames)
     cols.append("y")
-    mask_df = mask_x_df = input_df = pd.DataFrame(columns=cols)
+    mask_df = pd.DataFrame(columns=cols)
+    print(f"creating mask for {data_obj.data_name}")
     with torch.no_grad():
         g_model.eval()
         for X_batch, y_batch in dataset_loader:
             X_batch, y_batch = X_batch.to(device), y_batch.to(device)
             mask = g_model(X_batch)
-            cropped_features = X_batch * mask
+            if bin_mask:
+                mask = torch.where(mask>0.5,1,0)
+            y = np.expand_dims(np.argmax(np.array(y_batch.detach().cpu()),axis=1), axis=1)
+            mask = np.concatenate((np.array(mask.detach().cpu()),y),axis=1)
+            mask_df = pd.concat([mask_df,pd.DataFrame(mask,columns=cols)])
+
+    mask_df["label"] = data_obj.named_labels.values
+    if hasattr(data_obj,"patient"):
+        mask_df["patient"] = data_obj.patient.values
+
+    return mask_df
+
+def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
+    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
+    cols = list(data_obj.colnames)
+    double_cols = copy.deepcopy(cols)
+    double_cols.extend(cols)
+    double_cols.append("y")
+    cols.append("y")
+    mask_df = input_df = pd.DataFrame(columns=cols)
+    mask_x_df = pd.DataFrame(columns=double_cols)
+    print(f"creating mask for {data_obj.data_name}")
+    with torch.no_grad():
+        g_model.eval()
+        for X_batch, y_batch in dataset_loader:
+            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
+            mask = g_model(X_batch)
+            if bin_mask:
+                mask = torch.where(mask>0.5,1,0)
+            cropped_features = X_batch*mask
+            X_test_batch_bin = torch.where(X_batch==0, 1, 0)
+
+            cropped_features_neg = X_test_batch_bin *mask
+            cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
+
             
             y = np.expand_dims(np.argmax(np.array(y_batch.detach().cpu()),axis=1), axis=1)
             mask = np.concatenate((np.array(mask.detach().cpu()),y),axis=1)
@@ -26,13 +64,16 @@ def get_mask(g_model,data_obj,args,device):
             input_x = np.concatenate((np.array(X_batch.detach().cpu()),y),axis=1)
 
             mask_df = pd.concat([mask_df,pd.DataFrame(mask,columns=cols)])
-            mask_x_df = pd.concat([mask_x_df,pd.DataFrame(cropped_features,columns=cols)])
+            mask_x_df = pd.concat([mask_x_df,pd.DataFrame(cropped_features,columns=double_cols)])
             input_df = pd.concat([input_df,pd.DataFrame(input_x,columns=cols)])
     
     mask_df,mask_x_df,input_df = mask_df.reset_index(),mask_x_df.reset_index(),input_df.reset_index()
 
 
+
     mask_df["label"]= mask_x_df["label"] = input_df["label"] = data_obj.named_labels.values
+    if hasattr(data_obj,"patient"):
+        mask_df["patient"]= mask_x_df["patient"] = input_df["patient"] = data_obj.patient.values
 
     return mask_df,mask_x_df,input_df
 
@@ -99,23 +140,31 @@ def load_datasets_list(args):
 
 def save_weights(cls,g,data,base = ""):
     base_print = base+"_" if base != "" else base
-    if not os.path.exists(f"./weights/{data.data_name}/"):
-        os.mkdir(f"./weights/{data.data_name}/")
+    if not os.path.exists(f"./weights/1500_genes_weights/{data.data_name}/"):
+        os.mkdir(f"./weights/1500_genes_weights/{data.data_name}/")
     if base=="XGB":
-        cls.save_model(f"./weights/{data.data_name}/{base}.json")
+        cls.save_model(f"./weights/1500_genes_weights/{data.data_name}/{base}.json")
+    elif base=="RF":
+        joblib.dump(cls, f"./weights/1500_genes_weights/{data.data_name}/{base}.joblib")
     else:
-        torch.save(cls,f"./weights/{data.data_name}/{base_print}cls.pt")
-        torch.save(g,f"./weights/{data.data_name}/{base_print}g.pt")
-    print(f"{base} Models was saved to ./weights/{data.data_name}")
+        torch.save(cls,f"./weights/1500_genes_weights/{data.data_name}/{base_print}cls.pt")
+        torch.save(g,f"./weights/1500_genes_weights/{data.data_name}/{base_print}g.pt")
+    print(f"{base} Models was saved to ./weights/1500_genes_weights/{data.data_name}")
 
 
 def load_weights(data,device,base = ""):
     base_print = base+"_" if base != "" else base
-    # if base =="XGB":
-    #     cls.save_model(f"./weights/{data.data_name}/{base}.json")
     print(f"Loading pre-trained weights for {base} classifier")
-    cls = torch.load(f"./weights/{data.data_name}/{base_print}cls.pt").to(device)
-    print(f"Loading pre-trained weights for {base} G model")
-    g_model = torch.load(f"./weights/{data.data_name}/{base_print}g.pt").to(device)
+    if base =="XGB":
+        cls = xgb.XGBClassifier(objective="multi:softproba")
+        cls.load_model(f"./weights/{data.data_name}/{base}.json")
+        g_model = None
+    elif base =="RF":
+        cls = joblib.load(f"./weights/{data.data_name}/{base}.joblib")
+        g_model = None
+    else:
+        cls = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}cls.pt").to(device)
+        print(f"Loading pre-trained weights for {base} G model")
+        g_model = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}g.pt").to(device)
     return cls,g_model
 

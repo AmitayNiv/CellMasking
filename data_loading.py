@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from torch.utils.data import Dataset
 import torch
+from sklearn.utils.class_weight import compute_class_weight
 
 import dask
 import dask.dataframe as ddf
@@ -34,14 +35,29 @@ class ClassifierDataset(Dataset):
 
 
 class Data:
-    def __init__(self, data_name ='10X_pbmc_5k_v3.h5ad' ,train_ratio=0.8,features=True,test_set=False,all_labels=False):
-        self.full_data = sc.read(data_name.path)
+    def __init__(self, data_inst ,train_ratio=0.8,features=True,test_set=False,all_labels=False):
+        self.full_data = sc.read(data_inst.path)
+        ##################
+        # max_patient = self.full_data.obs.patient.value_counts()[:20].index
+        # self.full_data = self.full_data[self.full_data.obs['patient'].isin(max_patient),:]
+        ##################
+        filter_cell_types = None#["memory CD8","naive CD8"]#None # "memory CD8"
+        labels_by = "cell_type_l2" # "cell_type_l2"
+        
+        if filter_cell_types!= None:
+            if isinstance(filter_cell_types,str):
+                self.full_data = self.full_data[self.full_data.obs['cell_type_l2']==filter_cell_types,:]
+            else:
+                self.full_data = self.full_data[self.full_data.obs['cell_type_l2'].isin(filter_cell_types),:]
+
+                
         self.colnames = self.full_data.var.index
         self.rownames = self.full_data.obs.index
-        self.data_name = data_name.name[:-5]
+        self.data_name = data_inst.name[:-5]
 
         if features:
-            self.features = pd.read_csv('./data/singleCell/features.csv',index_col=0)['0']
+            # self.features = pd.read_csv('./data/singleCell/features.csv',index_col=0)['0']
+            self.features = pd.read_csv('./data//narrow_subset_features.csv',index_col=0)['gene_name']
         else:
             self.features = self.colnames
 
@@ -55,32 +71,32 @@ class Data:
             data = pd.DataFrame.sparse.from_spmatrix(data.X)
         else:
             data = self.full_data[:,self.overlap]
-            data = pd.DataFrame(data.X)
+            # data = pd.DataFrame(data.X)
+            data = pd.DataFrame(data.X.toarray())
 
         data.columns = self.overlap
-        data.index = self.rownames
+        # data.index = self.rownames
         extra = list(np.setdiff1d(self.features,self.overlap))
         # data[extra] = np.nan
         # data = data[self.features]
         self.colnames = data.columns
 
 
-        cell_type_col = "cell_type_l2"
-        self.named_labels = self.full_data.obs[cell_type_col]
+
+
+        self.named_labels = self.full_data.obs[labels_by]#self.full_data.obs["subbatch"]#self.full_data.obs[cell_type_col]
+        if "patient" in self.full_data.obs.columns:
+            self.patient = self.full_data.obs["patient"]
+        
 
         self.labels = pd.get_dummies(self.named_labels)
         if not all_labels:
             self.labels = self.labels[np.sort(np.unique(self.named_labels.values))]
 
-            
+        
 
         self.number_of_classes = self.labels.shape[1]
         self.n_features = len(self.colnames)
-
-        ##########
-        cell_type_col = "cell_type_l1"
-        self.named_labels_2 = self.full_data.obs[cell_type_col]
-        #########
 
         if not test_set:
             x_train,x_test,y_train,y_test = train_test_split(data,self.labels,test_size=(1-train_ratio),random_state=None)
@@ -96,9 +112,20 @@ class Data:
 
             self.all_dataset = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
             
-            # self.class_weights = 1./(torch.from_numpy(y_train.values).float().sum(dim=0))
+
             logs = -torch.log(torch.from_numpy(y_train.values).float().mean(dim=0))
-            self.class_weights = 1/logs/(1/logs).sum()
+            self.class_weights = (1/logs/(1/logs).sum())
+            # self.class_weights = torch.tensor(np.ones((y_train.shape[1])),dtype=torch.float)
+
+
+            # cl = np.array(range(len(np.unique(self.named_labels.values))))
+            # y_args = np.argmax(self.train_dataset.y_data,axis=1)
+            # class_weights = compute_class_weight(class_weight="balanced",classes=cl, y=np.array(y_args))
+            # self.class_weights=torch.tensor(class_weights,dtype=torch.float)
+            # self.class_weights = logs/(logs.sum())
+            ###
+            # self.class_weights[self.class_weights>0]=1/self.class_weights[self.class_weights>0]
+            ###
         else:
             self.test_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
         
@@ -109,14 +136,7 @@ class Data:
         
         if not test_set:
             print(f"X_train:{x_train.shape[0]} samples || X_val:{x_validation.shape[0]} samples || X_test:{x_test.shape[0]} samples")
-            # print(f"Class weights: {self.class_weights}")
 
-
-        
-        # print(f"Train samples:{y_train.index}")
-        # print(f"Val samples:{y_validation.index}")
-        # print(f"Test samples:{y_test.index}")
-       
 
 class ImmunData:
     def __init__(self,data_set = None,genes_filter="all",test_set=False,all_types = False):

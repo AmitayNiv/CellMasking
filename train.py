@@ -6,14 +6,14 @@ from torch.utils.data import DataLoader
 import copy
 import xgboost as xgb
 from tqdm import tqdm
-
+from sklearn.ensemble import RandomForestClassifier
 
 from models import Classifier,G_Model
 from metrics import evaluate
 
 
 def train_classifier(args,device,data_obj,model,wandb_exp):
-    print("Start training classifier")
+    print("\nStart training classifier")
     train_losses = []
     val_losses =[]
     best_model_auc = 0
@@ -129,7 +129,7 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
 
 def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
-    print("Start training G model")
+    print("\nStart training G model")
     classifier.eval()
 
     train_losses = []
@@ -266,8 +266,8 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
     criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
-    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
-    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
+    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr/10,weight_decay=args.weight_decay)
+    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr)/10,steps_per_epoch=len(train_loader)//(args.batch_factor*4)+1, epochs=args.g_epochs)
 
     global_step = 0
     g_model.to(device)
@@ -285,7 +285,7 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             mask = g_model(X_train_batch)
             cropped_features = X_train_batch_bin*mask
             y_train_pred = model(cropped_features)
-            loss = criterion(y_train_pred, y_train_batch)
+            loss = criterion(y_train_pred, y_train_batch)+ mask.mean()
             loss.backward()
 
             
@@ -293,7 +293,7 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
                 optimizer.step()
                 optimizer.zero_grad()
                 scheduler.step()
-
+            if (global_step + 1) % (args.batch_factor*4) == 0:
                 optimizer_G.step()
                 optimizer_G.zero_grad()
                 scheduler_G.step()
@@ -320,8 +320,8 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
 
                     cropped_features = X_val_batch_bin*mask
                     y_val_pred = model(cropped_features)
-
-                    val_loss = criterion(y_val_pred, y_val_batch)
+                    print("mask mean = {:.5f}, max= {:.5f}, min = {:.5f}".format(mask.mean(),mask.max(),mask.min()))
+                    val_loss = criterion(y_val_pred, y_val_batch)+ mask.mean()
                     val_epoch_loss += val_loss.item()
                     val_score = evaluate(y_val_batch, y_val_pred)
 
@@ -364,7 +364,7 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
 
             y_pred_score = best_model(cropped_features)
             test_score = evaluate(y_test_batch, y_pred_score)
-            print("Classifier test results:")
+            print("H test results:")
             print(test_score)
         res_dict = {
             "H mAUC":test_score["mauc"],"H medAUC":test_score["med_auc"],
@@ -400,8 +400,8 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
     criterion = nn.CrossEntropyLoss(weight=data_obj.class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=args.cls_lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,max_lr=float(args.cls_lr), steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.cls_epochs)
-    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr,weight_decay=args.weight_decay)
-    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr),steps_per_epoch=len(train_loader)//args.batch_factor+1, epochs=args.g_epochs)
+    optimizer_G = optim.Adam(g_model.parameters(), lr=args.g_lr/10,weight_decay=args.weight_decay)
+    scheduler_G = torch.optim.lr_scheduler.OneCycleLR(optimizer_G,max_lr=float(args.g_lr)/10,steps_per_epoch=len(train_loader)//(args.batch_factor*4)+1, epochs=args.g_epochs)
 
 
     global_step = 0
@@ -420,13 +420,10 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             cropped_features = X_train_batch*mask
             if concat:
                 X_train_batch_bin = torch.where(X_train_batch==0, 1, 0)
-                if woG:
-                    cropped_features_neg = X_train_batch_bin
-                else:
-                    cropped_features_neg = X_train_batch_bin *mask
+                cropped_features_neg = X_train_batch_bin *mask
                 cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
             y_train_pred = model(cropped_features)
-            loss = criterion(y_train_pred, y_train_batch)
+            loss = criterion(y_train_pred, y_train_batch)+ mask.mean()
             loss.backward()
 
             
@@ -435,6 +432,7 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                 optimizer.zero_grad()
                 scheduler.step()
 
+            if (global_step + 1) % (args.batch_factor*4) == 0:
                 optimizer_G.step()
                 optimizer_G.zero_grad()
                 scheduler_G.step()
@@ -457,15 +455,13 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                     X_val_batch, y_val_batch = X_val_batch.to(device), y_val_batch.to(device)
 
                     mask = g_model(X_val_batch)
+                    print("mask mean = {:.5f}, max= {:.5f}, min = {:.5f}".format(mask.mean(),mask.max(),mask.min()))
                     cropped_features = X_val_batch*mask
                     if concat:
                         X_val_batch_bin = torch.where(X_val_batch==0, 1, 0)
-                        if woG:
-                            cropped_features_neg = X_val_batch_bin
-                        else:
-                            cropped_features_neg = X_val_batch_bin *mask
+                        cropped_features_neg = X_val_batch_bin *mask
                         cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
-                    y_val_pred = model(cropped_features)
+                    y_val_pred = model(cropped_features)+ mask.mean()
 
                     val_loss = criterion(y_val_pred, y_val_batch)
                     val_epoch_loss += val_loss.item()
@@ -506,15 +502,12 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             cropped_features = X_test_batch*mask
             if concat:
                 X_test_batch_bin = torch.where(X_test_batch==0, 1, 0)
-                if woG:
-                    cropped_features_neg = X_test_batch_bin
-                else:
-                    cropped_features_neg = X_test_batch_bin *mask
+                cropped_features_neg = X_test_batch_bin *mask
                 cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
 
             y_pred_score = best_model(cropped_features)
             test_score = evaluate(y_test_batch, y_pred_score)
-            print("Classifier test results:")
+            print(f"{model_name} test results:")
             print(test_score)
             res_dict = {
             f"{model_name} mAUC":test_score["mauc"],f"{model_name} medAUC":test_score["med_auc"],
@@ -525,17 +518,19 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
 
 
 def train_xgb(data_obj,device):
-    print("Start training XGBoost")
+    print("\nStart training XGBoost")
     xgb_cl = xgb.XGBClassifier(objective="multi:softproba")
     X_train = np.array(data_obj.train_dataset.X_data)
-    pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
-    y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
+    # pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
+    # y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
+    y_train = np.array(data_obj.train_dataset.y_data)
     y_train = np.argmax(y_train,axis=1)
     xgb_cl.fit(X_train, y_train)
 
     print(f"XGB Test Results on {data_obj.data_name}")
     X_test = np.array(data_obj.test_dataset.X_data)
-    y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
+    # y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
+    y_test = np.array(data_obj.test_dataset.y_data)
     y_pred_score =  xgb_cl.predict_proba(X_test)
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)
@@ -544,5 +539,28 @@ def train_xgb(data_obj,device):
             "XGB mAUPR":test_score["maupr"],"XGB wegAUPR":test_score["weight_aupr"],"XGB medAUPR":test_score["med_aupr"],
             "XGB Accuracy":test_score["accuracy"]}
     return xgb_cl,res_dict
+
+def train_random_forest(data_obj,device):
+    print("\nStart training Random Forest Classifier")
+    clf = RandomForestClassifier(n_estimators=100)
+    X_train = np.array(data_obj.train_dataset.X_data)
+    # pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
+    # y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
+    y_train = np.array(data_obj.train_dataset.y_data)
+    y_train = np.argmax(y_train,axis=1)
+    clf.fit(X_train, y_train)
+
+    print(f"Random Forest Test Results on {data_obj.data_name}")
+    X_test = np.array(data_obj.test_dataset.X_data)
+    # y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
+    y_test = np.array(data_obj.test_dataset.y_data)
+    y_pred_score =  clf.predict_proba(X_test)
+    y_pred_score = torch.from_numpy(y_pred_score).to(device)
+    test_score = evaluate(y_test,y_pred_score)
+    print(test_score)
+    res_dict = {"RF mAUC":test_score["mauc"],"RF medAUC":test_score["med_auc"],
+            "RF mAUPR":test_score["maupr"],"RF wegAUPR":test_score["weight_aupr"],"RF medAUPR":test_score["med_aupr"],
+            "RF Accuracy":test_score["accuracy"]}
+    return clf,res_dict
 
 

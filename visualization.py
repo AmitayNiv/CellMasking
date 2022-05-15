@@ -10,18 +10,18 @@ from pkg_resources import safe_name
 import umap
 
 
-def visulaize_tsne(data_set,table_name,data_name,wandb_exp=None):
+def visulaize_tsne(table,table_name,dataset,wandb_exp=None):
     # data_set_name_csv =data_set_name+".csv"
     # res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
     # df_path = os.path.join(res_folder_path,data_set_name_csv)
     # data_set = pd.read_csv(df_path,index_col=0)
 
-    feat_cols = data_set.columns[1:-2]
+    feat_cols = dataset.colnames
 
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=1000)
 
     # for i in range(int(data_set["y"].values.max())+1):
-    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
+    current_data_set = table#.loc[(table['label']=="memory CD8") | (table['label']=="naive CD8")]
     data_subset = current_data_set[feat_cols].values
 
     tsne_results = tsne.fit_transform(data_subset)
@@ -36,15 +36,32 @@ def visulaize_tsne(data_set,table_name,data_name,wandb_exp=None):
     palette=sns.color_palette("hls",15),
     data=current_data_set,
     legend="full",
-    alpha=0.3).set(title=f"{table_name}|{data_name}|#samples:{current_data_set.shape[0]}")
+    alpha=0.3).set(title=f"{table_name}|{dataset.data_name}|#samples:{current_data_set.shape[0]}")
     data_set_name_png =f"tsne_{table_name}.png"
-    res_folder_path = f"./results/{data_name}/"
+    res_folder_path = f"./results/{dataset.data_name}/"
     plt.savefig(os.path.join(res_folder_path,data_set_name_png))
 
         # plt.savefig(os.path.join(res_folder_path,r"plots\tsne",data_set_name_png))
         # wandb_exp.log({f"{table_name} | label:{i} |#samples:{current_data_set.shape[0]}":fig})
     plt.cla()
     plt.close("all")
+
+    
+    # fig, ax = plt.subplots(figsize=(16,10))
+    # sns.scatterplot(
+    # x="tsne-2d-one", y="tsne-2d-two",
+    # hue="patient",
+    # palette=sns.color_palette("hls",10),
+    # data=current_data_set,
+    # legend="full",
+    # alpha=0.3).set(title=f"{table_name}|{dataset.data_name}|#samples:{current_data_set.shape[0]}")
+    # data_set_name_png =f"tsne_{table_name}_patient.png"
+    # res_folder_path = f"./results/{dataset.data_name}/"
+    # plt.savefig(os.path.join(res_folder_path,data_set_name_png))
+
+
+    # plt.cla()
+    # plt.close("all")
 
 def visulaize_imag(data_set_name):
     data_set_name_csv =data_set_name+".csv"
@@ -160,12 +177,12 @@ def visulaize_2d_var():
     plt.close("all")
 
 
-def visulaize_umap(data_set,table_name,data_name):
-    print(f'Craeting UMAP projection of the {table_name}| dataset:{data_name}')
-    feat_cols = data_set.columns[1:-2]
+def visulaize_umap(table,table_name,dataset):
+    print(f'Craeting UMAP projection of the {table_name}| dataset:{dataset.data_name}')
+    feat_cols = dataset.colnames
     reducer = umap.UMAP(random_state=42)
     
-    current_data_set = data_set#.loc[(data_set['label']=="memory CD8") | (data_set['label']=="naive CD8")]
+    current_data_set = table#.loc[(table['label']=="memory CD8") | (table['label']=="naive CD8")]
     data_subset = current_data_set[feat_cols].values
 
     reducer.fit(data_subset)
@@ -187,13 +204,60 @@ def visulaize_umap(data_set,table_name,data_name):
     # plt.gca().set_aspect('equal', 'datalim')
     # plt.colorbar()
     # plt.title('UMAP projection of the Digits dataset', fontsize=24);
-    plt.title(f'UMAP projection of the {table_name}| dataset:{data_name}', fontsize=16)
+    plt.title(f'UMAP projection of the {table_name}| dataset:{dataset.data_name}', fontsize=16)
 
 
     data_set_name_png =f"umap_{table_name}.png"
-    res_folder_path = f"./results/{data_name}/"
+    res_folder_path = f"./results/{dataset.data_name}/"
     plt.savefig(os.path.join(res_folder_path,data_set_name_png))
 
+    plt.cla()
+    plt.close("all")
+
+    # plt.figure(figsize=(16,10))
+    # sns.scatterplot(
+    #     x='embedding_0', y='embedding_1',
+    #     hue="patient",
+    #     palette=sns.color_palette("hls",10),
+    #     data=current_data_set,
+    #     legend="full",
+    #     alpha=0.3)
+    # # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
+    # # plt.gca().set_aspect('equal', 'datalim')
+    # # plt.colorbar()
+    # # plt.title('UMAP projection of the Digits dataset', fontsize=24);
+    # plt.title(f'UMAP projection of the {table_name}| dataset:{dataset.data_name}', fontsize=16)
+
+
+    # data_set_name_png =f"umap_{table_name}_patient.png"
+    # res_folder_path = f"./results/{dataset.data_name}/"
+    # plt.savefig(os.path.join(res_folder_path,data_set_name_png))
+
+    # plt.cla()
+    # plt.close("all")
+def visulaize_patient_heatmap(mask_df,data):
+    m = mask_df.groupby(['patient','label'], as_index=False)[data.colnames].agg("mean")
+    m_naive = m[m["label"]=="naive CD8"]
+    m_memory = m[m["label"]=="memory CD8"]
+
+    genes = m.sum()[m.sum()>0].index
+    pat = m_memory["patient"].values
+
+    plt.figure(figsize=(30,20))
+    plt.imshow(m_memory[genes] .values,cmap="hot")
+    plt.xticks(np.arange(0.5, len(genes), 1), genes,rotation = 90)
+    plt.yticks(np.arange(0.5, len(pat), 1), pat)
+    plt.title("CD8 Memory")
+    plt.colorbar()
+    plt.savefig("./results/heatmap_CD8_Memory.png")
+
+    plt.figure(figsize=(30,20))
+    plt.imshow(m_naive[genes] .values,cmap="hot")
+    plt.xticks(np.arange(0.5, len(genes), 1), genes,rotation = 90)
+    plt.yticks(np.arange(0.5, len(pat), 1), pat)
+    plt.title("CD8 Naive")
+    plt.colorbar()
+    plt.savefig("./results/heatmap_CD8_Naive.png")
     plt.cla()
     plt.close("all")
 
