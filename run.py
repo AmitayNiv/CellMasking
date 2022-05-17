@@ -5,8 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from run_tasks import run_train,run_masks_creation,run_masks_and_vis
-from utils import run_gsea,run_heatmap_procces
+from run_tasks import run_train,run_masks_creation,run_masks_and_vis,run_gsea,run_heatmap_procces
 import os
 import copy
 
