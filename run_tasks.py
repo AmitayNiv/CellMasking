@@ -8,7 +8,7 @@ import wandb
 from data_loading import Data,ImmunData
 from test import test,test_xgb
 from train import train_G, train_classifier,train_xgb,train_H,train_f2,train_random_forest
-from utils import get_mask, get_mask_only,init_models,features_f_corelation,load_datasets_list,save_weights,load_weights
+from utils import get_mask, get_mask_and_mult,init_models,features_f_corelation,load_datasets_list,save_weights,load_weights
 from visualization import visulaize_tsne, visulaize_umap
 import os
 import copy
@@ -143,33 +143,69 @@ def run_masks_creation(args,device):
 
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
-        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True)
+        dataset_time = time()
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
         print(f"Masking dataset:{data.data_name}")
         if not os.path.exists(f"./masks/{data.data_name}/"):
             os.mkdir(f"./masks/{data.data_name}/")
         ###########################################################
-        _,g_model_copy_f2_c = load_weights(data,device,"")
-        mask_df = get_mask_only(g_model_copy_f2_c,data,args,device)
+        _,g = load_weights(data,device,"")
+        mask_df = get_mask(g,data,args,device)
 
-        mask_df_mean = mask_df.groupby(['patient'], as_index=False)[data.colnames].mean()
-        mask_df_mean.to_csv(f"./masks/{data.data_name}/F2_c_mask_pat.csv")
 
-        mask_df_bin= get_mask_only(g_model_copy_f2_c,data,args,device,bin_mask=True)
+        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
+        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
+        mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask.csv")
 
-        mask_df_bin = mask_df_bin.groupby('patient', as_index=False)[data.colnames].mean()
-        mask_df_bin.to_csv(f"./masks/{data.data_name}/F2_c_bin_mask_pat.csv")
+        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
+        # mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask.csv")
 
+        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
+
+        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
+        # mask_df_bin.to_csv(f"./masks/{data.data_name}/G_bin_mask.csv")
+        ###########################################################
+        _,g = load_weights(data,device,"F2_c")
+        mask_df = get_mask(g,data,args,device)
+
+        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
+        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
+        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
+        mask_df_mean.to_csv(f"./masks/{data.data_name}/F2_c_mask.csv")
+
+        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
+
+        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
+        # mask_df_bin.to_csv(f"./masks/{data.data_name}/F2_c_bin_mask.csv")
+        ###########################################################
+        _,g = load_weights(data,device,"F2")
+        mask_df = get_mask(g,data,args,device)
+
+        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
+        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
+        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
+        mask_df_mean.to_csv(f"./masks/{data.data_name}/F2_mask.csv")
+
+        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
+
+        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
+        # mask_df_bin.to_csv(f"./masks/{data.data_name}/F2_bin_mask.csv")
+
+        
+
+        # ################################################################################################
+        # _,g_model_copy_f2_c = load_weights(data,device,"")
+        # mask_df = get_mask(g_model_copy_f2_c,data,args,device)
+
+        # mask_df_mean = mask_df.groupby('patient', as_index=False)[data.colnames].mean()
+        # mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask_pat.csv")
+
+        # mask_df_bin= get_mask(g_model_copy_f2_c,data,args,device,bin_mask=True)
+        # mask_df_bin = mask_df_bin.groupby('patient', as_index=False)[data.colnames].mean()
+        # mask_df_bin.to_csv(f"./masks/{data.data_name}/G_bin_mask_pat.csv")
         ################################################################################################
-        _,g_model_copy_f2_c = load_weights(data,device,"")
-        mask_df = get_mask_only(g_model_copy_f2_c,data,args,device)
-
-        mask_df_mean = mask_df.groupby('patient', as_index=False)[data.colnames].mean()
-        mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask_pat.csv")
-
-        mask_df_bin= get_mask_only(g_model_copy_f2_c,data,args,device,bin_mask=True)
-        mask_df_bin = mask_df_bin.groupby('patient', as_index=False)[data.colnames].mean()
-        mask_df_bin.to_csv(f"./masks/{data.data_name}/G_bin_mask_pat.csv")
-        ################################################################################################
+        time_diff = datetime.timedelta(seconds=time()-dataset_time)
+        print("{}:took {}".format(data.data_name,time_diff))  
 
 
 def run_masks_and_vis(args):
@@ -190,7 +226,7 @@ def run_masks_and_vis(args):
         if not os.path.exists(f"./results/{data.data_name}/"):
             os.mkdir(f"./results/{data.data_name}/")
         _,g_model_copy_f2_c = load_weights(data,device,"F2_c")
-        mask_df,mask_x_df,input_df = get_mask(g_model_copy_f2_c,data,args,device)
+        mask_df,mask_x_df,input_df = get_mask_and_mult(g_model_copy_f2_c,data,args,device)
         visulaize_umap(copy.deepcopy(mask_df),"mask_df",data)
         # visulaize_umap(copy.deepcopy(mask_x_df),"mask_x_df",data)
         # visulaize_umap(copy.deepcopy(input_df),"input_df",data)
@@ -200,7 +236,7 @@ def run_masks_and_vis(args):
         # visulaize_tsne(copy.deepcopy(input_df),"input_df",data)
 
 
-        mask_df,mask_x_df,input_df = get_mask(g_model_copy_f2_c,data,args,device,bin_mask=True)
+        mask_df,mask_x_df,input_df = get_mask_and_mult(g_model_copy_f2_c,data,args,device,bin_mask=True)
 
         mask_df_g = mask_df.groupby('patient', as_index=False)[data.colnames].mean()
 

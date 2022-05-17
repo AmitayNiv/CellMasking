@@ -127,7 +127,7 @@ class Data:
             # self.class_weights[self.class_weights>0]=1/self.class_weights[self.class_weights>0]
             ###
         else:
-            self.test_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
+            self.all_dataset   = ClassifierDataset(torch.from_numpy(data.values).float(), torch.from_numpy(self.labels.values).float())
         
 
         print(f"Loading {self.data_name} dataset:\n Total {self.labels.shape[0]} samples, {data.shape[1]} features\n\

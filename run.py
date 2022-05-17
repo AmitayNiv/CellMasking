@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import wandb
 from run_tasks import run_train,run_masks_creation,run_masks_and_vis
+from utils import run_gsea,run_heatmap_procces
 import os
 import copy
 
@@ -41,13 +42,15 @@ def run(args):
     torch.manual_seed(args.seed)
 
     ## Conecting to device
-    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     if device != 'cpu':
         torch.cuda.empty_cache()
     print(f'Using device {device}')
-
+    # run_gsea(args)
     if args.task =="Train":
-        run_train(args=args,device=device)
+        # run_masks_creation(args=args,device=device)
+        run_heatmap_procces(args,device)
+        # 
 
 
 
