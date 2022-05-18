@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from run_tasks import run_train,run_masks_creation,run_masks_and_vis,run_gsea,run_heatmap_procces,run_per_sample_gsea
+from run_tasks import run_train,run_create_and_save_masks,run_masks_and_vis,run_gsea,run_heatmap_procces,run_per_sample_gsea
 import os
 import copy
 
@@ -47,10 +47,8 @@ def run(args):
     print(f'Using device {device}')
     # run_gsea(args)
     if args.task =="Train":
-        # run_masks_creation(args=args,device=device)
-        # run_per_sample_gsea(args,device)
-        run_train(args,device)
-        # 
+        print("Starting Train")
+        run_gsea(args,device)
 
 
 

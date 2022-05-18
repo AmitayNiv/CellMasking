@@ -20,8 +20,6 @@ import eli5
 
 def get_mask(g_model,data_obj,args,device,bin_mask=False):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
-    cols = list(data_obj.colnames)
-    cols.append("y")
     print(f"Creating mask for {data_obj.data_name}")
     first_batch = True
     with torch.no_grad():
@@ -43,7 +41,7 @@ def get_mask(g_model,data_obj,args,device,bin_mask=False):
     # if hasattr(data_obj,"patient"):
     #     mask_df["patient"] = data_obj.patient.values
 
-    return  mask_arr
+    return mask_arr
 
 def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
@@ -165,18 +163,20 @@ def save_weights(cls,g,data,base = ""):
 
 def load_weights(data,device,base = "",only_g=False):
     base_print = base+"_" if base != "" else base
-    print(f"Loading pre-trained weights for {base} classifier")
     if base =="XGB":
+        print(f"Loading pre-trained weights for {base} classifier")
         cls = xgb.XGBClassifier(objective="multi:softproba")
-        cls.load_model(f"./weights/{data.data_name}/{base}.json")
+        cls.load_model(f"./weights/1500_genes_weights/{data.data_name}/{base}.json")
         g_model = None
     elif base =="RF":
-        cls = joblib.load(f"./weights/{data.data_name}/{base}.joblib")
+        print(f"Loading pre-trained weights for {base} classifier")
+        cls = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/{base}.joblib")
         g_model = None
     else:
         if only_g:
             cls = None
         else:
+            print(f"Loading pre-trained weights for {base} classifier")
             cls = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}cls.pt")#.to(device)
         print(f"Loading pre-trained weights for {base} G model")
         g_model = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}g.pt").to(device)
@@ -221,9 +221,6 @@ def get_tree_explaination(data):
         sample_important["y"] = y[sample]
 
         rf_important = pd.concat([rf_important,sample_important],axis=1)
-        # aux2 = copy.deepcopy(aux1)
-        # aux3 = copy.deepcopy(aux1)
-        # aux = concat_average_dfs(aux3,aux2)
     return rf_important
 
              
