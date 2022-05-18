@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from data_loading import Data,ImmunData
+from data_loading import Data
 from test import test,test_xgb
 from train import train_G, train_classifier,train_xgb,train_H,train_f2,train_random_forest
 from utils import get_mask, get_mask_and_mult,init_models,features_f_corelation,load_datasets_list,save_weights,load_weights,concat_average_dfs
