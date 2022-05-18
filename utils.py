@@ -19,7 +19,7 @@ import eli5
 
 
 def get_mask(g_model,data_obj,args,device,bin_mask=False):
-    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
+    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//16,shuffle=False)
     print(f"Creating mask for {data_obj.data_name}")
     first_batch = True
     with torch.no_grad():
@@ -35,13 +35,9 @@ def get_mask(g_model,data_obj,args,device,bin_mask=False):
                 first_batch = False
             else:
                 mask_arr = torch.cat((mask_arr,mask), 0)
-                
-
-    # mask_df["label"] = data_obj.named_labels.values
-    # if hasattr(data_obj,"patient"):
-    #     mask_df["patient"] = data_obj.patient.values
-
     return mask_arr
+
+
 
 def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
@@ -133,15 +129,16 @@ def features_f_corelation(args,device,data_obj,g_model,cls):
         plt.savefig(r"./results/f_diff.png")
 
 
-    pass
-
 
 def load_datasets_list(args):
+    if isinstance(args.data_type,str):
+        if args.data_type!="all":
+            args.data_type = [args.data_type]
     datasets_list = []
     for i,f in enumerate(os.scandir(r"./data/singleCell/")):
         if f.name == 'features.csv':
             continue
-        if args.data_type == "all" or f.name == args.data_type +".h5ad":
+        if args.data_type == "all" or f.name[:-5] in args.data_type:
             datasets_list.append(f)
                 
     return datasets_list
@@ -149,16 +146,16 @@ def load_datasets_list(args):
 
 def save_weights(cls,g,data,base = ""):
     base_print = base+"_" if base != "" else base
-    if not os.path.exists(f"./weights/1500_genes_weights/{data.data_name}/"):
-        os.mkdir(f"./weights/1500_genes_weights/{data.data_name}/")
+    if not os.path.exists(f"./weights/{data.data_name}/"):
+        os.mkdir(f"./weights/{data.data_name}/")
     if base=="XGB":
-        cls.save_model(f"./weights/1500_genes_weights/{data.data_name}/{base}.json")
+        cls.save_model(f"./weights/{data.data_name}/{base}.json")
     elif base=="RF":
-        joblib.dump(cls, f"./weights/1500_genes_weights/{data.data_name}/{base}.joblib")
+        joblib.dump(cls, f"./weights/{data.data_name}/{base}.joblib")
     else:
-        torch.save(cls,f"./weights/1500_genes_weights/{data.data_name}/{base_print}cls.pt")
-        torch.save(g,f"./weights/1500_genes_weights/{data.data_name}/{base_print}g.pt")
-    print(f"{base} Models was saved to ./weights/1500_genes_weights/{data.data_name}")
+        torch.save(cls,f"./weights/{data.data_name}/{base_print}cls.pt")
+        torch.save(g,f"./weights/{data.data_name}/{base_print}g.pt")
+    print(f"{base} Models was saved to ./weights/{data.data_name}")
 
 
 def load_weights(data,device,base = "",only_g=False):
@@ -166,28 +163,24 @@ def load_weights(data,device,base = "",only_g=False):
     if base =="XGB":
         print(f"Loading pre-trained weights for {base} classifier")
         cls = xgb.XGBClassifier(objective="multi:softproba")
-        cls.load_model(f"./weights/1500_genes_weights/{data.data_name}/{base}.json")
+        cls.load_model(f"./weights/{data.data_name}/{base}.json")
         g_model = None
     elif base =="RF":
         print(f"Loading pre-trained weights for {base} classifier")
-        cls = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/{base}.joblib")
+        cls = joblib.load(f"./weights/{data.data_name}/{base}.joblib")
         g_model = None
     else:
         if only_g:
             cls = None
         else:
             print(f"Loading pre-trained weights for {base} classifier")
-            cls = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}cls.pt")#.to(device)
+            cls = torch.load(f"./weights/{data.data_name}/{base_print}cls.pt")#.to(device)
         print(f"Loading pre-trained weights for {base} G model")
-        g_model = torch.load(f"./weights/1500_genes_weights/{data.data_name}/{base_print}g.pt").to(device)
+        g_model = torch.load(f"./weights/{data.data_name}/{base_print}g.pt").to(device)
     return cls,g_model
 
 
 def concat_average_dfs(aux2,aux3):
-    # Putting the same index together
-#     I use the try because I want to use this function recursive and 
-#     I could potentially introduce dataframe with those indexes. This
-#     is not the best way.
     try:
         aux2.set_index(['feature', 'target'],inplace = True)
     except:
@@ -198,8 +191,6 @@ def concat_average_dfs(aux2,aux3):
         pass
     # Concatenating and creating the meand
     aux = pd.DataFrame(pd.concat([aux2['weight'],aux3['weight']]).groupby(level = [0,1]).mean())
-    # Return in order
-    #return aux.sort_values(['weight'],ascending = [False],inplace = True)
     return aux
 
 
@@ -208,7 +199,7 @@ def get_tree_explaination(data):
     cols.append("y")
     rf_important = pd.DataFrame(columns=cols)
     ###############################################
-    rf_model = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/RF.joblib")
+    rf_model,_ = load_weights(data,None,"RF",only_g=True)
     X = np.array(data.all_dataset.X_data)
 
     y = np.array(data.all_dataset.y_data)

@@ -37,7 +37,6 @@ def evaluate(y_test, y_pred_score):
         
         score = {}
         score['accuracy'] = accuracy
-        # score['mean_accuracy'] = np.mean(acc_vec[positive_indexes])
         score['weight_accuracy'] = (np.array(acc_vec)*np.array(y_test).sum(axis=0)/np.array(y_test).sum()).sum()
         
         score['mauc'] = np.nanmean(aucs)

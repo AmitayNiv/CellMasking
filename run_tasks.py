@@ -34,7 +34,7 @@ def run_train(args,device):
         dataset_time = time()
         ## Init WandB experiment
         if args.wandb_exp:
-            wandb_exp = wandb.init(project="CellAnnotation", entity="niv_a")
+            wandb_exp = wandb.init(anonymous="must")
             wandb_exp.name = f"Train_{f.name}"
             wandb_exp.config.update(args.__dict__)
         else: 
@@ -45,11 +45,6 @@ def run_train(args,device):
             res_dict = {}
             res_prints = ""
             iter_time = time()
-            # args = arguments()
-
-            # if args.data_type == "immunai":
-            #     data = ImmunData(data_set="pbmc",genes_filter="narrow_subset",all_types=False)
-            # else:
             data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
             print(f"Training iteration:{j} dataset:{data.data_name}")
             
@@ -150,8 +145,6 @@ def run_train(args,device):
                 mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
                 std_results_df.to_csv(f"./results/{time_for_file}_std_res_df.csv")
 
-            
-
     time_diff = datetime.timedelta(seconds=time()-global_time)
     print("All training took: {}".format(time_diff))   
     print(f"#################################")  
@@ -161,7 +154,7 @@ def run_create_and_save_masks(args,device,models =["G","F2_c","F2","H"]):
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
         dataset_time = time()
-        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True)
         print(f"Masking dataset:{data.data_name}")
         if not os.path.exists(f"./masks/{data.data_name}/"):
             os.mkdir(f"./masks/{data.data_name}/")
@@ -178,43 +171,23 @@ def run_create_and_save_masks(args,device,models =["G","F2_c","F2","H"]):
         print("{}:took {}".format(data.data_name,time_diff))  
 
 
-def run_masks_and_vis(args):
-    ## Init random seed
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-
-    ## Conecting to device
-    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
-    if device != 'cpu':
-        torch.cuda.empty_cache()
-    print(f'Using device {device}')
+def run_masks_and_vis(args,device):
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
-        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True)
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,test_set=True)
         print(f"Masking dataset:{data.data_name}")
         if not os.path.exists(f"./results/{data.data_name}/"):
             os.mkdir(f"./results/{data.data_name}/")
-        _,g_model_copy_f2_c = load_weights(data,device,"F2_c")
-        mask_df,mask_x_df,input_df = get_mask_and_mult(g_model_copy_f2_c,data,args,device)
+        _,g = load_weights(data,device,"F2_c")
+        mask = get_mask(g,data,args,device)
+
+        mask_df = pd.DataFrame(np.array(mask.detach().cpu(),dtype=float),columns = list(data.colnames))
+        mask_df["label"] = data.named_labels.values 
         visulaize_umap(copy.deepcopy(mask_df),"mask_df",data)
-        # visulaize_umap(copy.deepcopy(mask_x_df),"mask_x_df",data)
-        # visulaize_umap(copy.deepcopy(input_df),"input_df",data)
+        input_df = pd.DataFrame(np.array(data.all_dataset.X_data.detach().cpu(),dtype=float),columns = list(data.colnames))
+        input_df["label"] = data.named_labels.values 
+        visulaize_umap(copy.deepcopy(input_df),"input",data)
 
-        # visulaize_tsne(copy.deepcopy(mask_df),"mask_df",data)
-        # visulaize_tsne(copy.deepcopy(mask_x_df),"mask_x_df",data)
-        # visulaize_tsne(copy.deepcopy(input_df),"input_df",data)
-
-
-        mask_df,mask_x_df,input_df = get_mask_and_mult(g_model_copy_f2_c,data,args,device,bin_mask=True)
-
-        mask_df_g = mask_df.groupby('patient', as_index=False)[data.colnames].mean()
-
-        visulaize_umap(copy.deepcopy(mask_df),"bin_mask_df",data)
-        # visulaize_umap(copy.deepcopy(mask_x_df),"bin_mask_x_df",data)
-
-        # visulaize_tsne(copy.deepcopy(mask_df),"bin_mask_df",data)
-        # visulaize_tsne(copy.deepcopy(mask_x_df),"bin_mask_x_df",data)
 
 def run_gsea(args,device):
     datasets_list = load_datasets_list(args)
@@ -250,7 +223,7 @@ def run_gsea(args,device):
             results_df = pd.concat([results_df, single_res_df])
 
         ###############################################
-        xgb_cls = load_weights(data,device,"XGB",only_g=True)
+        xgb_cls,_ = load_weights(data,device,"XGB",only_g=True)
         xgb_rank = pd.DataFrame(columns=["0","1"])
         xgb_rank["0"] = data.colnames
         xgb_rank["1"] = xgb_cls.feature_importances_
@@ -265,7 +238,7 @@ def run_gsea(args,device):
         results_df = pd.concat([results_df, single_res_df])
 
         ###############################################
-        rf_model = load_weights(data,device,"RF",only_g=True)
+        rf_model,_ = load_weights(data,device,"RF",only_g=True)
         rf_rank = pd.DataFrame(columns=["0","1"])
         rf_rank["0"] = data.colnames
         rf_rank["1"] = rf_model.feature_importances_
@@ -338,27 +311,24 @@ def run_heatmap_procces(args,device):
             current_data_std = current_data.groupby("patient")[data.colnames].agg(np.std)
             current_data_std.columns = data.colnames
 
-            # arr = current_data_std.values
-            # current_data_mean_mean = current_data_mean.mean(axis=0)
-            # best_genes = current_data_mean_mean[current_data_mean_mean>current_data_mean_mean.quantile(0.9)].index
-            # arr[current_data_mean.values>ten_p] = current_data_mean.values[current_data_mean.values>ten_p]
-            # df = pd.DataFrame(arr,columns=data.colnames)
-            current_data_mean_mean = current_data_mean.mean(axis=0)
-            best_genes = current_data_mean_mean[current_data_mean_mean>ten_p].index
-            df = current_data_mean[best_genes]
 
-            plt.figure(figsize=(30,20))
+            current_data_mean_mean = current_data_mean.mean(axis=0).sort_values(ascending=False)
+            best_genes = current_data_mean_mean[current_data_mean_mean>ten_p].index[:15]
+            df = current_data_mean[best_genes]
+            df = df/df.max().max()
+            plt.figure(figsize=(10,15))
             plt.imshow(df.values,cmap="hot")
             plt.xticks(np.arange(0.5, len(best_genes), 1), best_genes,rotation = 90)
             plt.yticks(np.arange(0.5, df.shape[0], 1), current_data_mean.index)
-            plt.title(current_data_name,fontsize=16)
+            # plt.title(current_data_name,fontsize=16)
             plt.colorbar()
-            plt.savefig(f"./results/heatmap_{current_data_name}.png")
+            plt.savefig(f"./results/heatmap_{current_data_name}.png",bbox_inches='tight',
+            pad_inches=0.1,)
 
 
 
 
-def run_per_sample_gsea(args,device):
+def run_per_sample_gsea_compare(args,device):
     datasets_list = load_datasets_list(args)
     stat_df = pd.DataFrame(columns=["Our mean","RF mean","Our std","RF std","Our var","RF var","T-test","P-value"])
     cols = ["Sample","y","Our nes","RF nes","Our pval","RF pval","Our fdr","RF fdr"]
@@ -370,7 +340,7 @@ def run_per_sample_gsea(args,device):
         print(f"\n### Starting work on {f.name[:-5]} ###")
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
         _,g = load_weights(data,device,"F2_c",only_g=True)
-        rf_model = load_weights(data,device,"RF",only_g=True)
+        rf_model,_ = load_weights(data,device,"RF",only_g=True)
 
 
         number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>1000 else data.all_dataset.X_data.shape[0]
@@ -439,3 +409,66 @@ def run_per_sample_gsea(args,device):
         print("Working on {}:took {}".format(data.data_name,time_diff))
         print(f"#################################")  
     stat_df.to_csv(f'./results/prerank/stst_res.csv',index=False)
+
+
+
+def run_per_sample_gsea(args,device):
+    datasets_list = load_datasets_list(args)
+    cols = ["Sample","y","nes","pval","fdr"]
+    stat_df =pd.DataFrame(columns=["data","model","Our mean","Our std","Our var"])
+    global_time = time()
+    for i,f in enumerate(datasets_list):
+        dataset_time = time()
+            
+        results_df = pd.DataFrame(columns=cols)
+        print(f"\n### Starting work on {f.name[:-5]} ###")
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
+        number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>1000 else data.all_dataset.X_data.shape[0]
+        random_samples =np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples) 
+        for mod in ["G","F2","F2_c"]:
+            base_print = "" if mod =="G" else mod
+            _,g = load_weights(data,device,base_print,only_g=True)
+
+            for j,sample in enumerate(random_samples):
+                print(f"\rRunning GSEA on sample {j+1}/{number_of_random_samples}")
+                with torch.no_grad():
+                    g.eval()
+                    X_batch = data.all_dataset.X_data[sample]
+                    y = np.array(data.all_dataset.y_data[sample])
+                    y = np.argmax(y) 
+                    mask = g(torch.unsqueeze(X_batch,0).to(device))
+
+                rnk = pd.DataFrame(columns=["0","1"])
+                rnk["0"] = data.colnames
+                rnk["1"] = torch.squeeze(mask).cpu()
+                rnk = rnk.sort_values(by="1",ascending=False)
+                pre_res = gp.prerank(rnk=rnk, gene_sets=f'./data/gmt_files/all.gmt',
+                        processes=4,
+                        permutation_num=100, # reduce number to speed up testing
+                        no_plot =True,
+                        outdir=f'./results/prerank/{f.name[:-5]}/prerank_report_all', format='png', seed=6,min_size=1, max_size=600)
+
+                res_list = [sample,data.named_labels[y],pre_res.res2d["nes"].values[0],
+                    pre_res.res2d["pval"].values[0],pre_res.res2d["fdr"].values[0]]
+                single_res_df =pd.DataFrame([res_list],columns=cols)
+                results_df = pd.concat([results_df, single_res_df])
+            
+            results_df = results_df.replace(np.inf,np.NAN)
+            print(f"############### {mod} Results on {number_of_random_samples} samples from {data.data_name} ############################")
+
+            our_mean = np.nanmean(results_df["nes"].values.astype(float))
+            our_std = np.nanstd(results_df["nes"].values.astype(float))
+            our_var = np.nanvar(results_df["nes"].values.astype(float).astype(float))
+            print(f"{mod}: mean:{our_mean}| std:{our_std}| var:{our_var}")
+
+        
+            res_list = [data.data_name,mod,our_mean,our_std,our_var]
+            single_stat_df =pd.DataFrame([res_list],columns=["data","model","Our mean","Our std","Our var"])
+            stat_df = pd.concat([stat_df, single_stat_df])
+        time_diff = datetime.timedelta(seconds=time()-dataset_time)
+        print("Working on {}:took {}".format(data.data_name,time_diff))
+    time_diff = datetime.timedelta(seconds=time()-dataset_time)
+    stat_df.to_csv(f'./results/prerank/stst_res_ablation.csv',index=False)
+    
+    print(f"#################################")  
+    

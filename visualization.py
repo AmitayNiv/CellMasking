@@ -8,20 +8,16 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from pkg_resources import safe_name
 import umap
+from utils import load_datasets_list
 
 
 def visulaize_tsne(table,table_name,dataset,wandb_exp=None):
-    # data_set_name_csv =data_set_name+".csv"
-    # res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
-    # df_path = os.path.join(res_folder_path,data_set_name_csv)
-    # data_set = pd.read_csv(df_path,index_col=0)
+
 
     feat_cols = dataset.colnames
 
     tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=1000)
-
-    # for i in range(int(data_set["y"].values.max())+1):
-    current_data_set = table#.loc[(table['label']=="memory CD8") | (table['label']=="naive CD8")]
+    current_data_set = table
     data_subset = current_data_set[feat_cols].values
 
     tsne_results = tsne.fit_transform(data_subset)
@@ -40,141 +36,11 @@ def visulaize_tsne(table,table_name,dataset,wandb_exp=None):
     data_set_name_png =f"tsne_{table_name}.png"
     res_folder_path = f"./results/{dataset.data_name}/"
     plt.savefig(os.path.join(res_folder_path,data_set_name_png))
-
-        # plt.savefig(os.path.join(res_folder_path,r"plots\tsne",data_set_name_png))
-        # wandb_exp.log({f"{table_name} | label:{i} |#samples:{current_data_set.shape[0]}":fig})
     plt.cla()
     plt.close("all")
 
-    
-    # fig, ax = plt.subplots(figsize=(16,10))
-    # sns.scatterplot(
-    # x="tsne-2d-one", y="tsne-2d-two",
-    # hue="patient",
-    # palette=sns.color_palette("hls",10),
-    # data=current_data_set,
-    # legend="full",
-    # alpha=0.3).set(title=f"{table_name}|{dataset.data_name}|#samples:{current_data_set.shape[0]}")
-    # data_set_name_png =f"tsne_{table_name}_patient.png"
-    # res_folder_path = f"./results/{dataset.data_name}/"
-    # plt.savefig(os.path.join(res_folder_path,data_set_name_png))
 
 
-    # plt.cla()
-    # plt.close("all")
-
-def visulaize_imag(data_set_name):
-    data_set_name_csv =data_set_name+".csv"
-    res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
-    df_path = os.path.join(res_folder_path,data_set_name_csv)
-    input_data = pd.read_csv(os.path.join(res_folder_path,'input_df.csv'),index_col=0)
-    data_set = pd.read_csv(df_path,index_col=0)
-    feat_cols = data_set.columns[1:-2]
-    pca = PCA(n_components=2)
-    for i in range(int(data_set["y"].values.max())+1):
-
-        curr_input_data = input_data[input_data["y"]==float(i)]
-        curr_input_sub_set =  curr_input_data[feat_cols].values
-
-        current_data_set = data_set[data_set["y"]==float(i)]
-        data_subset = current_data_set[feat_cols].values
-    
-        pca_result = pca.fit_transform(curr_input_sub_set)
-
-        current_data_set['pca-one'] = pca_result[:,0]
-        current_data_set['pca-two'] = pca_result[:,1] 
-
-        current_data_set = current_data_set.sort_values(by='pca-one')
-
-        plt.figure(figsize=(16,10))
-        plt.imshow(current_data_set[feat_cols].values,cmap="hot")
-        data_set_name_img =f"{i}_{data_set_name}_img.png"
-        plt.savefig(os.path.join(res_folder_path,r"plots\img",data_set_name_img))
-    plt.cla()
-    plt.close("all")
-
-def visulaize_pca(data_set_name):
-    data_set_name_csv =data_set_name+".csv"
-    res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
-    df_path = os.path.join(res_folder_path,data_set_name_csv)
-
-    data_set = pd.read_csv(df_path,index_col=0) 
-    feat_cols = data_set.columns[1:-2]
-    pca = PCA(n_components=2)
-    for i in range(int(data_set["y"].values.max())+1):
-
-
-        current_data_set = data_set[data_set["y"]==float(i)]
-        data_subset = current_data_set[feat_cols].values
-
-    
-        pca_result = pca.fit_transform(data_subset)
-
-        current_data_set['pca-one'] = pca_result[:,0]
-        current_data_set['pca-two'] = pca_result[:,1] 
-
-
-        plt.figure(figsize=(16,10))
-        sns.scatterplot(
-        x='pca-one', y="pca-two",
-        hue="label",
-        palette=sns.color_palette("hls",len(np.unique(current_data_set["label"].values))),
-        data=current_data_set,
-        legend="full",
-        alpha=0.3).set(title=f"{data_set_name} | label:{i} |#samples:{current_data_set.shape[0]}")
-        data_set_name_png =f"{i}_{data_set_name}_PCA.png"
-        plt.savefig(os.path.join(res_folder_path,r"plots\pca",data_set_name_png))
-    plt.cla()
-    plt.close("all")
-
-def visulaize_2d_var():
-    res_folder_path = r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results'
-    df_path_mask = os.path.join(res_folder_path,"mask.csv")
-    mask_df = pd.read_csv(df_path_mask,index_col=0)
-    
-    feat_cols = mask_df.columns[1:-2]
-
-    df_path_input = os.path.join(res_folder_path,"input_df.csv")
-    input_df = pd.read_csv(df_path_input,index_col=0)
-
-
-    c =plt.cm.get_cmap('hsv',20)
-    for i in range(int(input_df["y"].values.max())+1):
-        current_mask_df = mask_df[mask_df["y"]==float(i)]
-        current_mask_vals = (current_mask_df[feat_cols].values>0.5).astype(int)
-        current_df = input_df[input_df["y"]==float(i)]
-        input_vals = current_df[feat_cols].values
-
-        # bin_cropped_features = input_vals * current_mask_vals
-
-
-        samp_idx,gene_idx = np.where(current_mask_vals>0)
-
-        # var = []
-        # for idx in gene_idx:
-        #     bin_cropped_features = input_vals[samp_idx,gene_idx]
-
-        var = []
-        for gene_idx in range(input_vals.shape[1]):
-            gene_vec = []
-            for sample_idx in range(input_vals.shape[0]):
-                if current_mask_vals[sample_idx,gene_idx]>0:
-                    gene_vec.append(input_vals[sample_idx,gene_idx])
-            var.append(np.var(gene_vec))
-        
-
-
-
-        input_var = np.var(input_vals,axis=0)
-        # bin_cropped_var = np.var(bin_cropped_features)
-
-        f = plt.figure(i)
-        
-        plt.plot(input_var,var,"o",color=c(i),label=str(i))
-        plt.title(f"label:{i},#samples:{input_vals.shape[0]}")
-        plt.savefig(r'c:\Users\niv.a\Documents\GitHub\CellMasking\CellMasking\results\plots\var\{}.png'.format(i))
-    plt.cla()
-    plt.close("all")
 
 
 def visulaize_umap(table,table_name,dataset):
@@ -200,10 +66,6 @@ def visulaize_umap(table,table_name,dataset):
         data=current_data_set,
         legend="full",
         alpha=0.3)
-    # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
-    # plt.gca().set_aspect('equal', 'datalim')
-    # plt.colorbar()
-    # plt.title('UMAP projection of the Digits dataset', fontsize=24);
     plt.title(f'UMAP projection of the {table_name}| dataset:{dataset.data_name}', fontsize=16)
 
 
@@ -214,69 +76,35 @@ def visulaize_umap(table,table_name,dataset):
     plt.cla()
     plt.close("all")
 
-    # plt.figure(figsize=(16,10))
-    # sns.scatterplot(
-    #     x='embedding_0', y='embedding_1',
-    #     hue="patient",
-    #     palette=sns.color_palette("hls",10),
-    #     data=current_data_set,
-    #     legend="full",
-    #     alpha=0.3)
-    # # plt.scatter(embedding[:, 0], embedding[:, 1], c=current_data_set["y"], cmap='Spectral', s=5)
-    # # plt.gca().set_aspect('equal', 'datalim')
-    # # plt.colorbar()
-    # # plt.title('UMAP projection of the Digits dataset', fontsize=24);
-    # plt.title(f'UMAP projection of the {table_name}| dataset:{dataset.data_name}', fontsize=16)
 
 
-    # data_set_name_png =f"umap_{table_name}_patient.png"
-    # res_folder_path = f"./results/{dataset.data_name}/"
-    # plt.savefig(os.path.join(res_folder_path,data_set_name_png))
-
-    # plt.cla()
-    # plt.close("all")
-def visulaize_patient_heatmap(mask_df,data):
-    m = mask_df.groupby(['patient','label'], as_index=False)[data.colnames].agg("mean")
-    m_naive = m[m["label"]=="naive CD8"]
-    m_memory = m[m["label"]=="memory CD8"]
-
-    genes = m.sum()[m.sum()>0].index
-    pat = m_memory["patient"].values
-
-    plt.figure(figsize=(30,20))
-    plt.imshow(m_memory[genes] .values,cmap="hot")
-    plt.xticks(np.arange(0.5, len(genes), 1), genes,rotation = 90)
-    plt.yticks(np.arange(0.5, len(pat), 1), pat)
-    plt.title("CD8 Memory")
-    plt.colorbar()
-    plt.savefig("./results/heatmap_CD8_Memory.png")
-
-    plt.figure(figsize=(30,20))
-    plt.imshow(m_naive[genes].values,cmap="hot")
-    plt.xticks(np.arange(0.5, len(genes), 1), genes,rotation = 90)
-    plt.yticks(np.arange(0.5, len(pat), 1), pat)
-    plt.title("CD8 Naive", fontsize=16)
-    plt.colorbar()
-    plt.savefig("./results/heatmap_CD8_Naive.png")
-    plt.cla()
-    plt.close("all")
+def visulaize_gsne_per_sample_res(args):
+    datasets_list = load_datasets_list(args)
+    for i,f in enumerate(datasets_list):
+        df = pd.read_csv(f'./results/prerank/{f.name[:-5]}/{f.name[:-5]}_per_sample_res.csv')
+        rf_sr= 1-(np.isnan(df["RF nes"].values).sum()/df["RF nes"].shape[0])
+        our_sr= 1-(np.isnan(df["Our nes"].values).sum()/df["RF nes"].shape[0])
+        print("RF sr:{:.3f}| our sr:{:.3f} #### {}".format(rf_sr,our_sr,f.name[:-19]) )
 
 
-if __name__ == '__main__':
-    visulaize_tsne("mask")
-    visulaize_tsne("input_df")
-    visulaize_tsne("mask_x_df")
-    visulaize_tsne("mask_inv")
+        df.replace(np.nan,-2.5)
+        df["RF nes"].values[np.where(np.isnan(df["RF nes"].values))]=-2.5
+        df["Our nes"].values[np.where(np.isnan(df["Our nes"].values))]=-2.5
 
-    
+        labels =list(np.unique(df["y"].values))
 
-    # visulaize_imag("input_l1")
-    # visulaize_imag("mask_x_l1")
-    # visulaize_imag("mask_l1")
+        fig = plt.figure(figsize=(15,15))
+        plt.vlines(x=-2.5, ymin=-2.5, ymax=2.5,color="black",linestyles="dashed",label="inf")
+        plt.text(x=-2.45, y=2.4, s="inf",color="black")
+        plt.xlabel("RF NES",fontsize= 22)
+        plt.ylabel("Our NES",fontsize= 22)
+        plt.plot([-2.5,2.5],[-2.5,2.5],'--', color="red")
+        plt.text(x=2.45, y=2.52, s="x=y",color="red")
+        scatter =plt.scatter(df["RF nes"].values,df["Our nes"].values, c=df.y.astype('category').cat.codes, cmap='viridis')
 
-    visulaize_pca("input_df")
-    visulaize_pca("mask_x_df")
-    visulaize_pca("mask")
-    visulaize_pca("mask_inv")
 
-    # visulaize_2d_var()
+        # add legend to the plot with names
+        plt.legend(handles=scatter.legend_elements(alpha=0.6)[0], 
+                labels=labels,
+                title="Cell Type",loc="lower right",fontsize = 22)
+        plt.savefig(f"./results/per_sample_plots/scatter_{f.name[:-5]}.png")

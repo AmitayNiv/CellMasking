@@ -41,7 +41,6 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
     for e in range(args.cls_epochs):
         model.train()
         train_loss = 0
-        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
         for X_train_batch, y_train_batch in train_loader:
             X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
             
@@ -60,8 +59,6 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
             train_loss += loss.item()
 
             global_step += 1
-            # pbar.update(X_train_batch.shape[0])
-            # pbar.set_postfix(**{'loss (batch)': loss.item()})
         else:
             val_loss = 0
         
@@ -77,8 +74,6 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
 
     
                     
-            # train_losses.append(train_loss/len(train_batch))
-            # val_losses.append(val_loss)
 
             print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
                 "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
@@ -99,12 +94,8 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
                 best_model_auc = val_score["mauc"]
                 best_model_res = val_score.copy()
                 best_model_index = e+1
-                # best_model_name = "/F_model_{:.3f}.pt".format(best_model_auc)
-                # best_model_path = current_folder+best_model_name
                 print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
-                # torch.save(model,best_model_path)
                 best_model = copy.deepcopy(model)
-            # scheduler.step(val_score["auc"])
     if args.wandb_exp:
         wandb_exp.log({"Val mAUC":best_model_res["mauc"],"Val medAUC":best_model_res["med_auc"],
         "Val mAUPR":best_model_res["maupr"],"Val wegAUPR":best_model_res["weight_aupr"],"Val medAUPR":best_model_res["med_aupr"],"Val Accuracy":best_model_res["accuracy"]
@@ -154,7 +145,6 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
     global_step = 0
     for e in range(args.g_epochs):
         classifier.eval()
-        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.g_epochs}', unit='vec') as pbar:
         train_loss = 0
         loss_list = []
         model.train()
@@ -171,9 +161,6 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
                 optimizer_G.zero_grad(set_to_none=True)
                 scheduler_G.step()
             train_loss += loss.item()
-
-            # pbar.update(X_train_batch.shape[0])
-            # pbar.set_postfix(**{'loss (batch)': loss.item()})
             global_step +=1
         else:
             val_losses = 0
@@ -274,7 +261,6 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
         g_model.train()
         model.train()
         train_loss = 0
-        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
         for X_train_batch, y_train_batch in train_loader:
             X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
             
@@ -300,8 +286,6 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             train_loss += loss.item()
 
             global_step += 1
-            # pbar.update(X_train_batch.shape[0])
-            # pbar.set_postfix(**{'loss (batch)': loss.item()})
         else:
             val_loss = 0
         
@@ -323,11 +307,6 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
                     val_epoch_loss += val_loss.item()
                     val_score = evaluate(y_val_batch, y_val_pred)
 
-    
-                    
-            # train_losses.append(train_loss/len(train_batch))
-            # val_losses.append(val_loss)
-
             print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
                 "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
                 "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
@@ -339,13 +318,9 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             if val_score["mauc"] >best_model_auc:
                 best_model_auc = val_score["mauc"]
                 best_model_index = e+1
-                # best_model_name = "/F_model_{:.3f}.pt".format(best_model_auc)
-                # best_model_path = current_folder+best_model_name
                 print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
-                # torch.save(model,best_model_path)
                 best_model = copy.deepcopy(model)
                 best_g = copy.deepcopy(g_model)
-            # scheduler.step(val_score["auc"])
 
     best_model = best_model.to(device)
     with torch.no_grad():
@@ -406,11 +381,9 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
 
     
     for e in range(args.cls_epochs):
-        # g_model.eval()
         g_model.train()
         model.train()
         train_loss = 0
-        # with tqdm(total=len(train_loader), desc=f'Epoch {e + 1}/{args.cls_epochs}', unit='vec') as pbar:
         for X_train_batch, y_train_batch in train_loader:
             X_train_batch, y_train_batch = X_train_batch.to(device), y_train_batch.to(device)
             
@@ -440,8 +413,6 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             train_loss += loss.item()
 
             global_step += 1
-            # pbar.update(X_train_batch.shape[0])
-            # pbar.set_postfix(**{'loss (batch)': loss.item()})
         else:
             val_loss = 0
         
@@ -465,11 +436,6 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
                     val_epoch_loss += val_loss.item()
                     val_score = evaluate(y_val_batch, y_val_pred)
 
-    
-                    
-            # train_losses.append(train_loss/len(train_batch))
-            # val_losses.append(val_loss)
-
             print("Epoch: {}/{}.. ".format(e+1, args.cls_epochs),
                 "Training Loss: {:.5f}.. ".format(train_loss/len(train_loader)),
                 "Val mAUC: {:.5f}.. ".format(val_score["mauc"]),
@@ -481,13 +447,10 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             if val_score["mauc"] >best_model_auc:
                 best_model_auc = val_score["mauc"]
                 best_model_index = e+1
-                # best_model_name = "/F_model_{:.3f}.pt".format(best_model_auc)
-                # best_model_path = current_folder+best_model_name
                 print("Model Saved, Auc ={:.4f} , Epoch ={}".format(best_model_auc,best_model_index))
-                # torch.save(model,best_model_path)
                 best_model = copy.deepcopy(model)
                 best_g = copy.deepcopy(g_model)
-            # scheduler.step(val_score["auc"])
+
 
     best_model = best_model.to(device)
     with torch.no_grad():
@@ -526,7 +489,6 @@ def train_xgb(data_obj,device):
 
     print(f"XGB Test Results on {data_obj.data_name}")
     X_test = np.array(data_obj.test_dataset.X_data)
-    # y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
     y_test = np.array(data_obj.test_dataset.y_data)
     y_pred_score =  xgb_cl.predict_proba(X_test)
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
@@ -541,15 +503,12 @@ def train_random_forest(data_obj,device):
     print("\nStart training Random Forest Classifier")
     clf = RandomForestClassifier(n_estimators=100)
     X_train = np.array(data_obj.train_dataset.X_data)
-    # pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
-    # y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
     y_train = np.array(data_obj.train_dataset.y_data)
     y_train = np.argmax(y_train,axis=1)
     clf.fit(X_train, y_train)
 
     print(f"Random Forest Test Results on {data_obj.data_name}")
     X_test = np.array(data_obj.test_dataset.X_data)
-    # y_test = np.array(data_obj.test_dataset.y_data[:,pos_ind])
     y_test = np.array(data_obj.test_dataset.y_data)
     y_pred_score =  clf.predict_proba(X_test)
     y_pred_score = torch.from_numpy(y_pred_score).to(device)

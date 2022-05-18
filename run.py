@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from run_tasks import run_train,run_create_and_save_masks,run_masks_and_vis,run_gsea,run_heatmap_procces,run_per_sample_gsea
+from run_tasks import run_train,run_create_and_save_masks,run_masks_and_vis,run_gsea,run_heatmap_procces,run_per_sample_gsea_compare,run_per_sample_gsea
 import os
 import copy
 
@@ -23,12 +23,12 @@ class arguments(object):
       self.batch_size = 50
       self.batch_factor = 1
       self.train_ratio = 0.7
-      self.data_type = "all"#"immunai"# "10X_pbmc_5k_v3"
+      self.data_type = "all"
       self.wandb_exp = False
       self.load_pretraind_weights = False
       self.save_weights = False
       self.iterations = 5
-      self.working_models = {"F":True,"g":True,"F2":False,"F2_c":True,"H":False,"XGB":True,"RF":True}
+      self.working_models = {"F":True,"g":True,"F2":False,"F2_c":True,"H":True,"XGB":True,"RF":True}
       self.task = "Train"
 
 
@@ -41,20 +41,34 @@ def run(args):
     torch.manual_seed(args.seed)
 
     ## Conecting to device
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
     if device != 'cpu':
         torch.cuda.empty_cache()
     print(f'Using device {device}')
     # run_gsea(args)
     if args.task =="Train":
         print("Starting Train")
+        run_train(args,device)
+    elif args.task =="Mask Creation":
+        print("Starting Mask Creation")
+        run_create_and_save_masks(args,device)
+    elif args.task =="Masks Visualizatin":
+        print("Starting Masks Visualizatin")
+        run_masks_and_vis(args,device)
+    elif args.task =="GSEA":
+        print("Starting GSEA Analisys")
         run_gsea(args,device)
+    elif args.task =="Heatmaps":
+        print("Starting Important Heatmaps Calculation")
+        run_heatmap_procces(args,device)
+    elif args.task =="GSEA per Sample Compariosn":
+        print("Starting GSEA per Sample Compariosn")
+        run_per_sample_gsea_compare(args,device)
+    elif args.task =="GSEA per Sample":
+        print("Starting GSEA per Sample")
+        run_per_sample_gsea(args,device)
 
-
-
-
-
-
+        
 
 
 if __name__ == '__main__':
