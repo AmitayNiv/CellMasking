@@ -25,6 +25,7 @@ import scipy
 
 def run_train(args,device):
     ##
+    time_for_file = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     datasets_list = load_datasets_list(args)
     first_data_set = True
     global_time = time()
@@ -143,18 +144,20 @@ def run_train(args,device):
             std_results_df = pd.concat([std_results_df, single_data_res_std])
             
 
+            ### Saving the results every Iteration
+            full_resutls_df.to_csv(f"./results/{time_for_file}_full_res_df.csv")
+            if args.iterations>1:
+                mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
+                std_results_df.to_csv(f"./results/{time_for_file}_std_res_df.csv")
+
+            
+
     time_diff = datetime.timedelta(seconds=time()-global_time)
     print("All training took: {}".format(time_diff))   
     print(f"#################################")  
-    time_for_file = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    full_resutls_df.to_csv(f"./results/{time_for_file}_full_res_df.csv")
-    if args.iterations>1:
-        mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
-        std_results_df.to_csv(f"./results/{time_for_file}_std_res_df.csv")
 
 
-def run_masks_creation(args,device):
-
+def run_create_and_save_masks(args,device,models =["G","F2_c","F2","H"]):
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
         dataset_time = time()
@@ -163,61 +166,14 @@ def run_masks_creation(args,device):
         if not os.path.exists(f"./masks/{data.data_name}/"):
             os.mkdir(f"./masks/{data.data_name}/")
         ###########################################################
-        _,g = load_weights(data,device,"")
-        mask_df = get_mask(g,data,args,device)
+        for mod in models:
+            base_print = "" if mod =="G" else mod
+            _,g = load_weights(data,device,base_print,only_g=True)
+                
+            mask = get_mask(g,data,args,device)
 
-
-        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
-        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
-        mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask.csv")
-
-        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
-        # mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask.csv")
-
-        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
-
-        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
-        # mask_df_bin.to_csv(f"./masks/{data.data_name}/G_bin_mask.csv")
-        ###########################################################
-        _,g = load_weights(data,device,"F2_c")
-        mask_df = get_mask(g,data,args,device)
-
-        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
-        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
-        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
-        mask_df_mean.to_csv(f"./masks/{data.data_name}/F2_c_mask.csv")
-
-        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
-
-        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
-        # mask_df_bin.to_csv(f"./masks/{data.data_name}/F2_c_bin_mask.csv")
-        ###########################################################
-        _,g = load_weights(data,device,"F2")
-        mask_df = get_mask(g,data,args,device)
-
-        # mask_df_mean = mask_df.groupby(['label'], as_index=False)[data.colnames].mean()
-        mask_df[data.colnames] = mask_df[data.colnames].values.astype('float')
-        mask_df_mean = mask_df[data.colnames].T.quantile(q=0.2,axis=1)
-        mask_df_mean.to_csv(f"./masks/{data.data_name}/F2_mask.csv")
-
-        # mask_df_bin= get_mask(g,data,args,device,bin_mask=True)
-
-        # mask_df_bin = mask_df_bin.groupby('label', as_index=False)[data.colnames].mean()
-        # mask_df_bin.to_csv(f"./masks/{data.data_name}/F2_bin_mask.csv")
-
-        
-
-        # ################################################################################################
-        # _,g_model_copy_f2_c = load_weights(data,device,"")
-        # mask_df = get_mask(g_model_copy_f2_c,data,args,device)
-
-        # mask_df_mean = mask_df.groupby('patient', as_index=False)[data.colnames].mean()
-        # mask_df_mean.to_csv(f"./masks/{data.data_name}/G_mask_pat.csv")
-
-        # mask_df_bin= get_mask(g_model_copy_f2_c,data,args,device,bin_mask=True)
-        # mask_df_bin = mask_df_bin.groupby('patient', as_index=False)[data.colnames].mean()
-        # mask_df_bin.to_csv(f"./masks/{data.data_name}/G_bin_mask_pat.csv")
-        ################################################################################################
+            mask_df = pd.DataFrame(np.array(mask.detach().cpu(),dtype=float),columns = list(data.colnames))
+            mask_df.to_csv(f"./masks/{data.data_name}/{mod}_mask.csv")
         time_diff = datetime.timedelta(seconds=time()-dataset_time)
         print("{}:took {}".format(data.data_name,time_diff))  
 
@@ -293,8 +249,8 @@ def run_gsea(args,device):
             single_res_df =pd.DataFrame([res_list],columns=cols)
             results_df = pd.concat([results_df, single_res_df])
 
-        xgb_cls = xgb.XGBClassifier(objective="multi:softproba")
-        xgb_cls.load_model(f"./weights/1500_genes_weights/{data.data_name}/XGB.json")
+        ###############################################
+        xgb_cls = load_weights(data,device,"XGB",only_g=True)
         xgb_rank = pd.DataFrame(columns=["0","1"])
         xgb_rank["0"] = data.colnames
         xgb_rank["1"] = xgb_cls.feature_importances_
@@ -309,7 +265,7 @@ def run_gsea(args,device):
         results_df = pd.concat([results_df, single_res_df])
 
         ###############################################
-        rf_model = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/RF.joblib")
+        rf_model = load_weights(data,device,"RF",only_g=True)
         rf_rank = pd.DataFrame(columns=["0","1"])
         rf_rank["0"] = data.colnames
         rf_rank["1"] = rf_model.feature_importances_
@@ -346,7 +302,6 @@ def run_heatmap_procces(args,device):
         cols.append("y")
         mask_df = pd.DataFrame(columns=cols)
         print(f"Creating mask for {data.data_name}")
-        first_batch = True
         with torch.no_grad():
             g_model.eval()
             for X_batch, y_batch in dataset_loader:
@@ -415,7 +370,7 @@ def run_per_sample_gsea(args,device):
         print(f"\n### Starting work on {f.name[:-5]} ###")
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
         _,g = load_weights(data,device,"F2_c",only_g=True)
-        rf_model = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/RF.joblib")
+        rf_model = load_weights(data,device,"RF",only_g=True)
 
 
         number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>1000 else data.all_dataset.X_data.shape[0]
@@ -439,8 +394,6 @@ def run_per_sample_gsea(args,device):
                     no_plot =True,
                     outdir=f'./results/prerank/{f.name[:-5]}/prerank_report_all', format='png', seed=6,min_size=1, max_size=600)
            
-            
-
 
             aux1 = eli5.sklearn.explain_prediction.explain_prediction_tree_classifier(rf_model, np.array(X_batch),feature_names=np.array(data.colnames),targets=[y])
             aux1 = eli5.format_as_dataframe(aux1).drop(0)
@@ -463,8 +416,9 @@ def run_per_sample_gsea(args,device):
         
         if hasattr(data,"patient"):
             results_df["patient"] = data.patient.values[random_samples]
+
         results_df = results_df.replace(np.inf,np.NAN)
-        results_df.to_csv(f'./results/prerank/{f.name[:-5]}/{f.name[:-5]}_per_sample_res.csv')
+        results_df.to_csv(f'./results/prerank/{f.name[:-5]}/{f.name[:-5]}_per_sample_res.csv',index=False)
         print(f"############### Results on {number_of_random_samples} samples from {data.data_name} ############################")
         stats_res = scipy.stats.ttest_rel(results_df["Our nes"].values,results_df["RF nes"].values,nan_policy="omit")
         print(f"T-test res:{stats_res.statistic}| P-value:{stats_res.pvalue}")
@@ -484,4 +438,4 @@ def run_per_sample_gsea(args,device):
         time_diff = datetime.timedelta(seconds=time()-dataset_time)
         print("Working on {}:took {}".format(data.data_name,time_diff))
         print(f"#################################")  
-    stat_df.to_csv(f'./results/prerank/stst_res.csv')
+    stat_df.to_csv(f'./results/prerank/stst_res.csv',index=False)
