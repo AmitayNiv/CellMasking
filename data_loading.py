@@ -41,7 +41,7 @@ class Data:
         # max_patient = self.full_data.obs.patient.value_counts()[:20].index
         # self.full_data = self.full_data[self.full_data.obs['patient'].isin(max_patient),:]
         ##################
-        filter_cell_types = None#["memory CD8","naive CD8"]#None # "memory CD8"
+        filter_cell_types = None#["memory CD8","naive CD8"]#None#["memory CD8","naive CD8"]#None # "memory CD8"
         labels_by = "cell_type_l2" # "cell_type_l2"
         
         if filter_cell_types!= None:
@@ -92,6 +92,7 @@ class Data:
         self.labels = pd.get_dummies(self.named_labels)
         if not all_labels:
             self.labels = self.labels[np.sort(np.unique(self.named_labels.values))]
+            self.named_labels = np.sort(np.unique(self.named_labels.values))
 
         
 
@@ -131,7 +132,7 @@ class Data:
         
 
         print(f"Loading {self.data_name} dataset:\n Total {self.labels.shape[0]} samples, {data.shape[1]} features\n\
-            {len(np.unique(self.named_labels.values))} labels: { np.unique(self.named_labels.values)}")
+            {len(self.named_labels)} labels: { self.named_labels}")
         
         
         if not test_set:

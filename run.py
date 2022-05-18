@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from run_tasks import run_train,run_masks_creation,run_masks_and_vis,run_gsea,run_heatmap_procces
+from run_tasks import run_train,run_masks_creation,run_masks_and_vis,run_gsea,run_heatmap_procces,run_per_sample_gsea
 import os
 import copy
 
@@ -23,12 +23,12 @@ class arguments(object):
       self.batch_size = 50
       self.batch_factor = 1
       self.train_ratio = 0.7
-      self.data_type = "su_2020"#"immunai"# "10X_pbmc_5k_v3"
+      self.data_type = "all"#"immunai"# "10X_pbmc_5k_v3"
       self.wandb_exp = False
       self.load_pretraind_weights = False
-      self.save_weights = True
-      self.iterations = 1
-      self.working_models = {"F":True,"g":True,"F2":True,"F2_c":True,"H":True,"XGB":True,"RF":True}
+      self.save_weights = False
+      self.iterations = 5
+      self.working_models = {"F":True,"g":True,"F2":False,"F2_c":True,"H":False,"XGB":True,"RF":True}
       self.task = "Train"
 
 
@@ -48,7 +48,8 @@ def run(args):
     # run_gsea(args)
     if args.task =="Train":
         # run_masks_creation(args=args,device=device)
-        run_heatmap_procces(args,device)
+        # run_per_sample_gsea(args,device)
+        run_train(args,device)
         # 
 
 

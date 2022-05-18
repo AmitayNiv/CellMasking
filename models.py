@@ -15,7 +15,8 @@ class Classifier(nn.Module):
         self.drop = nn.Dropout(p=dropout)
         # self.relu = nn.LeakyReLU()#nn.ReLU()
         # self.tanh = nn.Tanh()
-        self.selu = nn.SELU()     
+        self.selu = nn.SELU()
+             
     def forward(self, x):
         x = self.selu(self.fc1(x))
         x = self.drop(x)

@@ -252,10 +252,10 @@ def visulaize_patient_heatmap(mask_df,data):
     plt.savefig("./results/heatmap_CD8_Memory.png")
 
     plt.figure(figsize=(30,20))
-    plt.imshow(m_naive[genes] .values,cmap="hot")
+    plt.imshow(m_naive[genes].values,cmap="hot")
     plt.xticks(np.arange(0.5, len(genes), 1), genes,rotation = 90)
     plt.yticks(np.arange(0.5, len(pat), 1), pat)
-    plt.title("CD8 Naive")
+    plt.title("CD8 Naive", fontsize=16)
     plt.colorbar()
     plt.savefig("./results/heatmap_CD8_Naive.png")
     plt.cla()

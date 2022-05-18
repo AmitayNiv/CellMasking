@@ -15,6 +15,8 @@ import gseapy as gp
 from data_loading import Data
 from time import time
 import datetime
+import eli5
+
 
 def get_mask(g_model,data_obj,args,device,bin_mask=False):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
@@ -40,10 +42,8 @@ def get_mask(g_model,data_obj,args,device,bin_mask=False):
     # mask_df["label"] = data_obj.named_labels.values
     # if hasattr(data_obj,"patient"):
     #     mask_df["patient"] = data_obj.patient.values
-    mean = mask_arr.mean(dim=0)
-    ten_p = torch.quantile(mean,0.85)
-    val = torch.where(mean>ten_p,mean,torch.std(mask_arr, dim=0))
-    return  val#torch.var(mask_df, dim=0)#torch.max(mask_df.mean(dim=0),3*torch.std(mask_df, dim=0))#torch.quantile(mask_df.detach().cpu(),0.9,dim=0)
+
+    return  mask_arr
 
 def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
@@ -183,5 +183,47 @@ def load_weights(data,device,base = "",only_g=False):
     return cls,g_model
 
 
+def concat_average_dfs(aux2,aux3):
+    # Putting the same index together
+#     I use the try because I want to use this function recursive and 
+#     I could potentially introduce dataframe with those indexes. This
+#     is not the best way.
+    try:
+        aux2.set_index(['feature', 'target'],inplace = True)
+    except:
+        pass
+    try:
+        aux3.set_index(['feature', 'target'],inplace = True)
+    except:
+        pass
+    # Concatenating and creating the meand
+    aux = pd.DataFrame(pd.concat([aux2['weight'],aux3['weight']]).groupby(level = [0,1]).mean())
+    # Return in order
+    #return aux.sort_values(['weight'],ascending = [False],inplace = True)
+    return aux
 
-                    
+
+def get_tree_explaination(data):
+    cols = data.colnames
+    cols.append("y")
+    rf_important = pd.DataFrame(columns=cols)
+    ###############################################
+    rf_model = joblib.load(f"./weights/1500_genes_weights/{data.data_name}/RF.joblib")
+    X = np.array(data.all_dataset.X_data)
+
+    y = np.array(data.all_dataset.y_data)
+    y = np.argmax(y,axis=1)
+    for sample in range(X.shape[0]):
+        aux1 = eli5.sklearn.explain_prediction.explain_prediction_tree_classifier(rf_model,X[sample],feature_names=np.array(data.colnames),targets=[y[sample]])
+        aux1 = eli5.format_as_dataframe(aux1).drop(0)
+        sample_important = pd.DataFrame(np.zeros((1,len(cols))),columns=cols)
+        sample_important[aux1.feature.values]=aux1.weight.values
+        sample_important["y"] = y[sample]
+
+        rf_important = pd.concat([rf_important,sample_important],axis=1)
+        # aux2 = copy.deepcopy(aux1)
+        # aux3 = copy.deepcopy(aux1)
+        # aux = concat_average_dfs(aux3,aux2)
+    return rf_important
+
+             

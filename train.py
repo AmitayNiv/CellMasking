@@ -118,13 +118,13 @@ def train_classifier(args,device,data_obj,model,wandb_exp):
             test_score = evaluate(y_test_batch, y_pred_score)
             print("Classifier test results:")
             print(test_score)
+        res_dict = {
+            "F mAUC":test_score["mauc"],"F wegAUC":test_score["weight_auc"],"F medAUC":test_score["med_auc"],
+            "F mAUPR":test_score["maupr"],"F wegAUPR":test_score["weight_aupr"],
+            "F medAUPR":test_score["med_aupr"],"F Accuracy":test_score["accuracy"],"F mAccuracy":test_score["maccuracy"],"F wegAccuracy":test_score["weight_accuracy"]
+            }
         if args.wandb_exp:
-            wandb_exp.config.update({"Test mAUC":test_score["mauc"],"Test medAUC":test_score["med_auc"],
-            "Test mAUPR":test_score["maupr"],"Test wegAUPR":test_score["weight_aupr"],"Test medAUPR":test_score["med_aupr"],"Test Accuracy":test_score["accuracy"]
-            })
-        res_dict = {"cls mAUC":test_score["mauc"],"cls medAUC":test_score["med_auc"],
-        "cls mAUPR":test_score["maupr"],"cls wegAUPR":test_score["weight_aupr"],"cls medAUPR":test_score["med_aupr"],
-        "cls Accuracy":test_score["accuracy"]}
+            wandb_exp.config.update(res_dict)
     return best_model,res_dict
 
 
@@ -235,16 +235,14 @@ def train_G(args,device,data_obj,classifier,model=None,wandb_exp=None):
             y_pred_score = classifier(cropped_features)
             test_score = evaluate(y_test_batch, y_pred_score)
             print(test_score)
-        if args.wandb_exp:
-            wandb_exp.config.update({"G Test mAUC":test_score["mauc"],"G Test medAUC":test_score["med_auc"],
-            "G Test mAUPR":test_score["maupr"],"G Test wegAUPR":test_score["weight_aupr"],
-            "G Test medAUPR":test_score["med_aupr"],"G Test Accuracy":test_score["accuracy"]
-            })
+
         res_dict = {
-            "G mAUC":test_score["mauc"],"G medAUC":test_score["med_auc"],
+            "G mAUC":test_score["mauc"],"G wegAUC":test_score["weight_auc"],"G medAUC":test_score["med_auc"],
             "G mAUPR":test_score["maupr"],"G wegAUPR":test_score["weight_aupr"],
-            "G medAUPR":test_score["med_aupr"],"G Accuracy":test_score["accuracy"]
+            "G medAUPR":test_score["med_aupr"],"G Accuracy":test_score["accuracy"],"G mAccuracy":test_score["maccuracy"],"G wegAccuracy":test_score["weight_accuracy"]
             }
+        if args.wandb_exp:
+            wandb_exp.config.update(res_dict)
     return best_G_model, res_dict
 
 
@@ -367,9 +365,9 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None):
             print("H test results:")
             print(test_score)
         res_dict = {
-            "H mAUC":test_score["mauc"],"H medAUC":test_score["med_auc"],
+            "H mAUC":test_score["mauc"],"H wegAUC":test_score["weight_auc"],"H medAUC":test_score["med_auc"],
             "H mAUPR":test_score["maupr"],"H wegAUPR":test_score["weight_aupr"],
-            "H medAUPR":test_score["med_aupr"],"H Accuracy":test_score["accuracy"]
+            "H medAUPR":test_score["med_aupr"],"H Accuracy":test_score["accuracy"],"H mAccuracy":test_score["maccuracy"],"H wegAccuracy":test_score["weight_accuracy"]
             }
     return best_model,best_g,res_dict
 
@@ -510,9 +508,9 @@ def train_f2(args,device,data_obj,g_model,model=None,wandb_exp=None,concat=False
             print(f"{model_name} test results:")
             print(test_score)
             res_dict = {
-            f"{model_name} mAUC":test_score["mauc"],f"{model_name} medAUC":test_score["med_auc"],
+            f"{model_name} mAUC":test_score["mauc"],f"{model_name} wegAUC":test_score["weight_auc"],f"{model_name} medAUC":test_score["med_auc"],
             f"{model_name} mAUPR":test_score["maupr"],f"{model_name} wegAUPR":test_score["weight_aupr"],
-            f"{model_name} medAUPR":test_score["med_aupr"],f"{model_name} Accuracy":test_score["accuracy"]
+            f"{model_name} medAUPR":test_score["med_aupr"],f"{model_name} Accuracy":test_score["accuracy"],f"{model_name} mAccuracy":test_score["maccuracy"],f"{model_name} wegAccuracy":test_score["weight_accuracy"]
             }
     return best_model,best_g,res_dict
 
@@ -521,8 +519,7 @@ def train_xgb(data_obj,device):
     print("\nStart training XGBoost")
     xgb_cl = xgb.XGBClassifier(objective="multi:softproba")
     X_train = np.array(data_obj.train_dataset.X_data)
-    # pos_ind = np.where(data_obj.train_dataset.y_data.sum(axis=0)>0)[0]
-    # y_train = np.array(data_obj.train_dataset.y_data[:,pos_ind])
+
     y_train = np.array(data_obj.train_dataset.y_data)
     y_train = np.argmax(y_train,axis=1)
     xgb_cl.fit(X_train, y_train)
@@ -535,9 +532,9 @@ def train_xgb(data_obj,device):
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)
     print(test_score)
-    res_dict = {"XGB mAUC":test_score["mauc"],"XGB medAUC":test_score["med_auc"],
+    res_dict = {"XGB mAUC":test_score["mauc"],"XGB wegAUC":test_score["weight_auc"],"XGB medAUC":test_score["med_auc"],
             "XGB mAUPR":test_score["maupr"],"XGB wegAUPR":test_score["weight_aupr"],"XGB medAUPR":test_score["med_aupr"],
-            "XGB Accuracy":test_score["accuracy"]}
+            "XGB Accuracy":test_score["accuracy"],"XGB mAccuracy":test_score["maccuracy"],"XGB wegAccuracy":test_score["weight_accuracy"]}
     return xgb_cl,res_dict
 
 def train_random_forest(data_obj,device):
@@ -558,9 +555,9 @@ def train_random_forest(data_obj,device):
     y_pred_score = torch.from_numpy(y_pred_score).to(device)
     test_score = evaluate(y_test,y_pred_score)
     print(test_score)
-    res_dict = {"RF mAUC":test_score["mauc"],"RF medAUC":test_score["med_auc"],
+    res_dict = {"RF mAUC":test_score["mauc"],"RF wegAUC":test_score["weight_auc"],"RF medAUC":test_score["med_auc"],
             "RF mAUPR":test_score["maupr"],"RF wegAUPR":test_score["weight_aupr"],"RF medAUPR":test_score["med_aupr"],
-            "RF Accuracy":test_score["accuracy"]}
+            "RF Accuracy":test_score["accuracy"],"RF mAccuracy":test_score["maccuracy"],"RF wegAccuracy":test_score["weight_accuracy"]}
     return clf,res_dict
 
 
