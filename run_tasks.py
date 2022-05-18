@@ -133,17 +133,18 @@ def run_train(args,device):
             mean_resutls_df = single_data_res_mean
             std_results_df = single_data_res_std
             first_data_set = False
+            
         else:
             full_resutls_df = pd.concat([full_resutls_df, single_data_res_df])
             mean_resutls_df = pd.concat([mean_resutls_df, single_data_res_mean])
             std_results_df = pd.concat([std_results_df, single_data_res_std])
             
 
-            ### Saving the results every Iteration
-            full_resutls_df.to_csv(f"./results/{time_for_file}_full_res_df.csv")
-            if args.iterations>1:
-                mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
-                std_results_df.to_csv(f"./results/{time_for_file}_std_res_df.csv")
+        ### Saving the results every Iteration
+        full_resutls_df.to_csv(f"./results/{time_for_file}_full_res_df.csv")
+        if args.iterations>1:
+            mean_resutls_df.to_csv(f"./results/{time_for_file}_mean_res_df.csv")
+            std_results_df.to_csv(f"./results/{time_for_file}_std_res_df.csv")
 
     time_diff = datetime.timedelta(seconds=time()-global_time)
     print("All training took: {}".format(time_diff))   
