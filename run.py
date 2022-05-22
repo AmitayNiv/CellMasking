@@ -23,7 +23,7 @@ class arguments(object):
       self.batch_size = 50
       self.batch_factor = 1
       self.train_ratio = 0.7
-      self.data_type = "all"
+      self.data_type =  "all"
       self.wandb_exp = False
       self.load_pretraind_weights = False
       self.save_weights = False

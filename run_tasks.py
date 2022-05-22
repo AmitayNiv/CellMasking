@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import eli5
 import scipy
+import shap
 
 def run_train(args,device):
     ##
@@ -331,8 +332,8 @@ def run_heatmap_procces(args,device):
 
 def run_per_sample_gsea_compare(args,device):
     datasets_list = load_datasets_list(args)
-    stat_df = pd.DataFrame(columns=["Our mean","RF mean","Our std","RF std","Our var","RF var","T-test","P-value"])
-    cols = ["Sample","y","Our nes","RF nes","Our pval","RF pval","Our fdr","RF fdr"]
+    stat_df = pd.DataFrame(columns=["Data","Our mean","RF mean","XGB mean","Our std","RF std","XGB std","Our var","RF var","XGB var","RF T-test","RF P-value","XGB T-test","XGB P-value"])
+    cols = ["Sample","y","Our nes","RF nes","XGB nes","Our pval","RF pval","XGB pval","Our fdr","RF fdr","XGB fdr"]
     global_time = time()
     for i,f in enumerate(datasets_list):
         dataset_time = time()
@@ -342,9 +343,10 @@ def run_per_sample_gsea_compare(args,device):
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
         _,g = load_weights(data,device,"F2_c",only_g=True)
         rf_model,_ = load_weights(data,device,"RF",only_g=True)
+        xgb_cls,_ = load_weights(data,device,"XGB",only_g=True)
 
 
-        number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>1000 else data.all_dataset.X_data.shape[0]
+        number_of_random_samples = 100 if data.all_dataset.X_data.shape[0]>100 else data.all_dataset.X_data.shape[0]
         random_samples =np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples)  
         for j,sample in enumerate(random_samples):
             print(f"\rRunning GSEA on sample {j+1}/{number_of_random_samples}")
@@ -365,7 +367,7 @@ def run_per_sample_gsea_compare(args,device):
                     no_plot =True,
                     outdir=f'./results/prerank/{f.name[:-5]}/prerank_report_all', format='png', seed=6,min_size=1, max_size=600)
            
-
+            ####################################################################
             aux1 = eli5.sklearn.explain_prediction.explain_prediction_tree_classifier(rf_model, np.array(X_batch),feature_names=np.array(data.colnames),targets=[y])
             aux1 = eli5.format_as_dataframe(aux1).drop(0)
 
@@ -378,10 +380,24 @@ def run_per_sample_gsea_compare(args,device):
                     permutation_num=100, # reduce number to speed up testing
                     no_plot =True,
                     outdir=f'./results/prerank/{f.name[:-5]}/prerank_report_all', format='png', seed=6,min_size=1, max_size=600)
+            ####################################################################
+            explainer = shap.Explainer(xgb_cls)
+            shap_values = explainer(torch.unsqueeze(X_batch,0))
+            xgb_rnk = pd.DataFrame(columns=["0","1"])
+            xgb_rnk["0"] = data.colnames
+            xgb_rnk["1"] = shap_values[0].values[:,y]
+            xgb_rnk = xgb_rnk.sort_values(by="1",ascending=False)
+            xgb_rnk_pre_res = gp.prerank(rnk=xgb_rnk, gene_sets=f'./data/gmt_files/all.gmt',
+                    processes=4,
+                    permutation_num=100, # reduce number to speed up testing
+                    no_plot =True,
+                    outdir=f'./results/prerank/{f.name[:-5]}/prerank_report_all', format='png', seed=6,min_size=1, max_size=600)
            
 
-            res_list = [sample,data.named_labels[y],pre_res.res2d["nes"].values[0],rf_pre_res.res2d["nes"].values[0],\
-                pre_res.res2d["pval"].values[0],rf_pre_res.res2d["pval"].values[0],pre_res.res2d["fdr"].values[0],rf_pre_res.res2d["fdr"].values[0]]
+            res_list = [sample,data.named_labels[y],pre_res.res2d["nes"].values[0],rf_pre_res.res2d["nes"].values[0],xgb_rnk_pre_res.res2d["nes"].values[0]\
+                ,pre_res.res2d["pval"].values[0],rf_pre_res.res2d["pval"].values[0],xgb_rnk_pre_res.res2d["pval"].values[0],pre_res.res2d["fdr"].values[0],
+                rf_pre_res.res2d["fdr"].values[0],xgb_rnk_pre_res.res2d["fdr"].values[0]
+                ]
             single_res_df =pd.DataFrame([res_list],columns=cols)
             results_df = pd.concat([results_df, single_res_df])
         
@@ -391,26 +407,31 @@ def run_per_sample_gsea_compare(args,device):
         results_df = results_df.replace(np.inf,np.NAN)
         results_df.to_csv(f'./results/prerank/{f.name[:-5]}/{f.name[:-5]}_per_sample_res.csv',index=False)
         print(f"############### Results on {number_of_random_samples} samples from {data.data_name} ############################")
-        stats_res = scipy.stats.ttest_rel(results_df["Our nes"].values,results_df["RF nes"].values,nan_policy="omit")
-        print(f"T-test res:{stats_res.statistic}| P-value:{stats_res.pvalue}")
+        rf_stats_res = scipy.stats.ttest_rel(results_df["Our nes"].values.astype(float),results_df["RF nes"].values.astype(float),nan_policy="omit")
+        print(f"RF -- T-test res:{rf_stats_res.statistic}| P-value:{rf_stats_res.pvalue}")
+        xgb_stats_res = scipy.stats.ttest_rel(results_df["Our nes"].values.astype(float),results_df["XGB nes"].values.astype(float),nan_policy="omit")
+        print(f"XGB -- T-test res:{xgb_stats_res.statistic}| P-value:{xgb_stats_res.pvalue}")
         our_mean = np.nanmean(results_df["Our nes"].values.astype(float))
         our_std = np.nanstd(results_df["Our nes"].values.astype(float))
-        our_var = np.nanvar(results_df["Our nes"].values.astype(float).astype(float))
+        our_var = np.nanvar(results_df["Our nes"].values.astype(float))
         rf_mean = np.nanmean(results_df["RF nes"].values.astype(float))
         rf_std = np.nanstd(results_df["RF nes"].values.astype(float))
         rf_var = np.nanvar(results_df["RF nes"].values.astype(float))
+        xgb_mean = np.nanmean(results_df["XGB nes"].values.astype(float))
+        xgb_std = np.nanstd(results_df["XGB nes"].values.astype(float))
+        xgb_var = np.nanvar(results_df["XGB nes"].values.astype(float))
         print(f"Our's: mean:{our_mean}| std:{our_std}| var:{our_var}")
         print(f"RF's: mean:{rf_mean}| std:{rf_std}| var:{rf_var}")
+        print(f"XGB's: mean:{xgb_mean}| std:{xgb_std}| var:{xgb_var}")
         
-        res_list = [our_mean,rf_mean,our_std,rf_std,our_var,rf_var,stats_res.statistic,stats_res.pvalue]
+        res_list = [f.name[:-5],our_mean,rf_mean,xgb_mean,our_std,rf_std,xgb_std,our_var,rf_var,xgb_var,rf_stats_res.statistic,rf_stats_res.pvalue,xgb_stats_res.statistic,xgb_stats_res.pvalue]
                 
-        single_stat_df =pd.DataFrame([res_list],columns=["Our mean","RF mean","Our std","RF std","Our var","RF var","T-test","P-value"])
+        single_stat_df =pd.DataFrame([res_list],columns=["Data","Our mean","RF mean","XGB mean","Our std","RF std","XGB std","Our var","RF var","XGB var","RF T-test","RF P-value","XGB T-test","XGB P-value"])
         stat_df = pd.concat([stat_df, single_stat_df])
         time_diff = datetime.timedelta(seconds=time()-dataset_time)
         print("Working on {}:took {}".format(data.data_name,time_diff))
         print(f"#################################")  
-    stat_df.to_csv(f'./results/prerank/stst_res.csv',index=False)
-
+        stat_df.to_csv(f'./results/prerank/stst_res.csv',index=False)
 
 
 def run_per_sample_gsea(args,device):
