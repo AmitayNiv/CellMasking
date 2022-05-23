@@ -25,6 +25,14 @@ import scipy
 import shap
 
 def run_train(args,device):
+    """
+    Run training for all chosen datasets, for all working models
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     ##
     time_for_file = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     datasets_list = load_datasets_list(args)
@@ -67,30 +75,23 @@ def run_train(args,device):
 
             args.batch_factor=1
             args.weight_decay=5e-4
-            if args.working_models["F2_c"]:
-                g_model_copy_f2_c = copy.deepcopy(g_model)
-                f2_c,g_model_copy_f2_c,f2_c_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_f2_c,wandb_exp=None,model=None,concat=True)
-                res_dict.update(f2_c_res_dict)
+            if args.working_models["H"]:
+                g_model_copy_h = copy.deepcopy(g_model)
+                h,g_model_copy_h,h_res_dict = train_H(args,device,data_obj=data,g_model=g_model_copy_h,wandb_exp=None,model=None,train_H=True)
+                res_dict.update(h_res_dict)
                 res_prints+="\nF2_c Resutls\n"
-                res_prints+=str(f2_c_res_dict)
+                res_prints+=str(h_res_dict)
                 if args.save_weights:
-                    save_weights(cls=f2_c,g=g_model_copy_f2_c,data=data,base="F2_c")
+                    save_weights(cls=h,g=g_model_copy_h,data=data,base="H")
             if args.working_models["F2"]:
                 g_model_copy_f2 = copy.deepcopy(g_model)
-                f2,g_model_copy_f2,f2_res_dict = train_f2(args,device,data_obj=data,g_model=g_model_copy_f2,wandb_exp=None,model=None,concat=False)
+                f2,g_model_copy_f2,f2_res_dict = train_H(args,device,data_obj=data,g_model=g_model_copy_f2,wandb_exp=None,model=None,train_H=False)
                 res_dict.update(f2_res_dict)
                 res_prints+="\nF2 Resutls\n"
                 res_prints+=str(f2_res_dict)
                 if args.save_weights:
                     save_weights(cls=f2,g=g_model_copy_f2,data=data,base="F2")
-            if args.working_models["H"]:
-                g_model_copy_H = copy.deepcopy(g_model)
-                h,g_model_copy_H,h_res_dict = train_H(args,device,data_obj=data,g_model=g_model_copy_H,wandb_exp=None,model=None)
-                res_dict.update(h_res_dict)
-                res_prints+="\nH Resutls\n"
-                res_prints+=str(h_res_dict)
-                if args.save_weights:
-                    save_weights(cls=h,g=g_model_copy_H,data=data,base="H")
+
             if args.working_models["XGB"]:
                 xgb_cls,xgb_res_dict = train_xgb(data,device)
                 res_dict.update(xgb_res_dict)
@@ -152,7 +153,16 @@ def run_train(args,device):
     print(f"#################################")  
 
 
-def run_create_and_save_masks(args,device,models =["G","F2_c","F2","H"]):
+def run_create_and_save_masks(args,device,models =["G","F2","H"]):
+    """
+    Cerating masks and save masks to files 
+
+    Arguments:
+    args [obj] - Arguments
+    device
+    models [list] - models to create masks for
+
+    """
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
         dataset_time = time()
@@ -174,13 +184,21 @@ def run_create_and_save_masks(args,device,models =["G","F2_c","F2","H"]):
 
 
 def run_masks_and_vis(args,device):
+    """
+    Cerating mask and UMAP projection (input and mask) of H for all datasets
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,test_set=True)
         print(f"Masking dataset:{data.data_name}")
         if not os.path.exists(f"./results/{data.data_name}/"):
             os.mkdir(f"./results/{data.data_name}/")
-        _,g = load_weights(data,device,"F2_c")
+        _,g = load_weights(data,device,"H")
         mask = get_mask(g,data,args,device)
 
         mask_df = pd.DataFrame(np.array(mask.detach().cpu(),dtype=float),columns = list(data.colnames))
@@ -192,6 +210,14 @@ def run_masks_and_vis(args,device):
 
 
 def run_gsea(args,device):
+    """
+    Run GSEA analisys for all datasets, for all models (G,H,F2,XGB,RF) and saving results to files
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     datasets_list = load_datasets_list(args)
     # with open("./data/immunai_data_set.gmt")as gmt:
     cols = ["Data","Model","nes","pval","fdr"]
@@ -201,7 +227,7 @@ def run_gsea(args,device):
         dataset_time = time()
         print(f"\n### Starting work on {f.name[:-5]} ###")
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
-        for mod in ["G","F2_c","F2"]:
+        for mod in ["G","H","F2"]:
             base_print = "" if mod =="G" else mod
             _,g = load_weights(data,device,base_print,only_g=True)
             mask_df = get_mask(g,data,args,device)
@@ -266,6 +292,14 @@ def run_gsea(args,device):
 
 
 def run_heatmap_procces(args,device):
+    """
+    Create heatmaps for specific genes per patients - Working only for datasets with patient data
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     datasets_list = load_datasets_list(args)
     for i,f in enumerate(datasets_list):
         dataset_time = time()
@@ -331,6 +365,15 @@ def run_heatmap_procces(args,device):
 
 
 def run_per_sample_gsea_compare(args,device):
+    """
+    Run per sample GSEA analisys based on our H, ELI5 for RF or SHAP for XGB
+    saving data per dataset and overall comparison
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     datasets_list = load_datasets_list(args)
     stat_df = pd.DataFrame(columns=["Data","Our mean","RF mean","XGB mean","Our std","RF std","XGB std","Our var","RF var","XGB var","RF T-test","RF P-value","XGB T-test","XGB P-value"])
     cols = ["Sample","y","Our nes","RF nes","XGB nes","Our pval","RF pval","XGB pval","Our fdr","RF fdr","XGB fdr"]
@@ -341,7 +384,7 @@ def run_per_sample_gsea_compare(args,device):
         results_df = pd.DataFrame(columns=cols)
         print(f"\n### Starting work on {f.name[:-5]} ###")
         data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
-        _,g = load_weights(data,device,"F2_c",only_g=True)
+        _,g = load_weights(data,device,"H",only_g=True)
         rf_model,_ = load_weights(data,device,"RF",only_g=True)
         xgb_cls,_ = load_weights(data,device,"XGB",only_g=True)
 
@@ -435,6 +478,15 @@ def run_per_sample_gsea_compare(args,device):
 
 
 def run_per_sample_gsea(args,device):
+    """
+    Run per sample GSEA analisys based on our methods for abiliation ablation
+    saving data per dataset and overall results
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
     datasets_list = load_datasets_list(args)
     cols = ["Sample","y","nes","pval","fdr"]
     stat_df =pd.DataFrame(columns=["data","model","Our mean","Our std","Our var"])

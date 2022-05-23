@@ -19,6 +19,19 @@ import eli5
 
 
 def get_mask(g_model,data_obj,args,device,bin_mask=False):
+    """
+    Run inference of G model on entire dataset and return the provided mask by G
+
+    Arguments:
+    g_model [obj] - G model
+    data_obj [obj] - Data object
+    args [obj] - arguments
+    device 
+    bin_mask [binary] - If to apply TH on mask results
+
+    Return:
+    mask_arr [torch.tensor] - G output mask
+    """
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//16,shuffle=False)
     print(f"Creating mask for {data_obj.data_name}")
     first_batch = True
@@ -40,6 +53,21 @@ def get_mask(g_model,data_obj,args,device,bin_mask=False):
 
 
 def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
+    """
+    Run inference of G model on entire dataset and return the provided mask by G, adding lable vector and patient vector if exists
+
+    Arguments:
+    g_model [obj] - G model
+    data_obj [obj] - Data object
+    args [obj] - arguments
+    device 
+    bin_mask [binary] - If to apply TH on mask results
+
+    Return:
+    mask_arr [pandas DF] - G output mask
+    mask_x_df [pandas DF] - G output mask multiplied by the input 
+    input_df [pandas DF] - input data
+    """
     dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=len(data_obj.all_dataset)//8,shuffle=False)
     cols = list(data_obj.colnames)
     double_cols = copy.deepcopy(cols)
@@ -84,6 +112,19 @@ def get_mask_and_mult(g_model,data_obj,args,device,bin_mask=False):
 
 
 def init_models(args,data,device,base = ""):
+    """
+    Init G and F models
+
+    Arguments:
+    data [obj] - Data object
+    args [obj] - arguments
+    device 
+    base [str] - name of the model to load ("" for F and G)
+
+    Return:
+    cls [obj] - Classifier
+    g_model [obj] - related G model
+    """
     if args.load_pretraind_weights:
         cls,g_model = load_weights(data,device,base)
     else:
@@ -96,47 +137,22 @@ def init_models(args,data,device,base = ""):
     return cls,g_model
     
 
-def features_f_corelation(args,device,data_obj,g_model,cls):
-    dataset_loader = DataLoader(dataset=data_obj.all_dataset,batch_size=1,shuffle=False)
-    with torch.no_grad():
-        g_model.eval()
-        cls.eval()
-        j=0
-        g_scroe = []
-        pred_diff = []
-        for X_batch, y_batch in dataset_loader:
-            j+=1
-            X_batch, y_batch = X_batch.to(device), y_batch.to(device)
-
-            mask = g_model(X_batch)
-
-            for i in range(X_batch.shape[1]):
-                if X_batch[0,i]!=0:
-                    y_reg_pred = torch.softmax(cls(X_batch), dim = 1)
-                    first_label = y_reg_pred.argmax().item()
-                    y_reg_pred = y_reg_pred[0,first_label].item()
-                    X_batch_copy = copy.deepcopy(X_batch)
-                    X_batch_copy[0,i] = 0
-                    y_zer_pred = torch.softmax(cls(X_batch_copy), dim = 1)
-                    y_zer_pred = y_zer_pred[0,first_label].item()
-                    pred_diff.append(y_reg_pred-y_zer_pred)
-                    g_scroe.append(mask[0,i].item())
-            print(j)
-        plt.plot(pred_diff,g_scroe,"o")
-        plt.xlabel("prediction diff")
-        plt.ylabel("G score")
-        
-        plt.savefig(r"./results/f_diff.png")
-
-
-
 def load_datasets_list(args):
+    """
+    Loading name and paths of the datasets to run on
+
+    Arguments:
+    args [obj] - arguments
+
+    Return:
+    datasets_list [list] - list of datasets
+    """
     if isinstance(args.data_type,str):
         if args.data_type!="all":
             args.data_type = [args.data_type]
     datasets_list = []
     for i,f in enumerate(os.scandir(r"./data/singleCell/")):
-        if f.name == 'features.csv':
+        if f.name == 'features.csv' or "-adt" in f.name :
             continue
         if args.data_type == "all" or f.name[:-5] in args.data_type:
             datasets_list.append(f)
@@ -145,6 +161,16 @@ def load_datasets_list(args):
 
 
 def save_weights(cls,g,data,base = ""):
+    """
+    Save weights of models
+
+    Arguments:
+    cls [obj] - Classifier
+    g [obj] - G model
+    data [obj] - Data object
+    base [str] - name of the model to load ("" for F and G)
+
+    """
     base_print = base+"_" if base != "" else base
     if not os.path.exists(f"./weights/{data.data_name}/"):
         os.mkdir(f"./weights/{data.data_name}/")
@@ -159,6 +185,21 @@ def save_weights(cls,g,data,base = ""):
 
 
 def load_weights(data,device,base = "",only_g=False):
+    """
+    Loading weights of models
+
+    Arguments:
+    data [obj] - Data object
+    base [str] - name of the model to load ("" for F and G)
+    device 
+    only_g [binary] -  Indicate if load only G model 
+
+    
+    Return:
+    cls [obj] - Classifier
+    g_model [obj] - related G model
+
+    """
     base_print = base+"_" if base != "" else base
     if base =="XGB":
         print(f"Loading pre-trained weights for {base} classifier")
@@ -195,6 +236,18 @@ def concat_average_dfs(aux2,aux3):
 
 
 def get_tree_explaination(data):
+    """
+    Create gene important list base on eli5 library
+
+    Arguments:
+    data [obj] - Data object
+
+
+    
+    Return:
+    rf_important [pd Dataframe] - Random forest feature important per sample
+
+    """
     cols = data.colnames
     cols.append("y")
     rf_important = pd.DataFrame(columns=cols)

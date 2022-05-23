@@ -28,7 +28,7 @@ class arguments(object):
       self.load_pretraind_weights = False
       self.save_weights = False
       self.iterations = 5
-      self.working_models = {"F":True,"g":True,"F2":False,"F2_c":True,"H":True,"XGB":True,"RF":True}
+      self.working_models = {"F":True,"g":True,"F2":False,"H":True,"XGB":True,"RF":True}
       self.task = "Train"
 
 

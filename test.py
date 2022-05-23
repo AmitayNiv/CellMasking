@@ -5,6 +5,17 @@ import numpy as np
 from metrics import evaluate
 
 def test(classifier,g_model,device,data_obj):
+    """
+    test models on test data
+
+    Arguments:
+    classifier [obj] - trained F/H model
+    g_model [obj] - trained G model
+    data_obj [obj] - Data object
+    device
+
+
+    """
     test_loader = DataLoader(dataset=data_obj.test_dataset, batch_size=len(data_obj.test_dataset))
     print(f"Test results on {data_obj.data_name} dataset")
     with torch.no_grad():
@@ -24,6 +35,15 @@ def test(classifier,g_model,device,data_obj):
             print(test_score)
 
 def test_xgb(xgb_cls,data_obj,device):
+    """
+    test XGB model on test data
+
+    Arguments:
+    xgb_cls [obj] - trained XGB model
+    data_obj [obj] - Data object
+    device
+
+    """
     print(f"XGB Test Results on {data_obj.data_name}")
     X_test = np.array(data_obj.test_dataset.X_data)
     y_test = np.array(data_obj.test_dataset.y_data)
