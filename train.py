@@ -357,9 +357,9 @@ def train_H(args,device,data_obj,g_model,model=None,wandb_exp=None,train_H=True)
                         X_val_batch_bin = torch.where(X_val_batch==0, 1, 0)
                         cropped_features_neg = X_val_batch_bin *mask
                         cropped_features = torch.concat((cropped_features,cropped_features_neg),dim=1)
-                    y_val_pred = model(cropped_features)+ mask.mean()
+                    y_val_pred = model(cropped_features)
 
-                    val_loss = criterion(y_val_pred, y_val_batch)
+                    val_loss = criterion(y_val_pred, y_val_batch)+ mask.mean()
                     val_epoch_loss += val_loss.item()
                     val_score = evaluate(y_val_batch, y_val_pred)
 
