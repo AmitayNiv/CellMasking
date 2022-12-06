@@ -16,6 +16,10 @@ from data_loading import Data
 from time import time
 import datetime
 import eli5
+import scanpy as sc
+from scipy.sparse import csr_matrix, csc_matrix
+from sklearn.feature_selection import SelectKBest, chi2
+
 
 
 def get_mask(g_model,data_obj,args,device,bin_mask=False):
@@ -132,7 +136,7 @@ def init_models(args,data,device,base = ""):
         cls = Classifier(data.n_features ,dropout=args.dropout,number_of_classes=data.number_of_classes,first_division=2)
         cls = cls.to(device)
         print("Initializing G model")
-        g_model = G_Model(data.n_features,first_division=2)
+        g_model = G_Model(data.n_features,first_division=1)
         g_model = g_model.to(device)
     return cls,g_model
     
@@ -151,12 +155,15 @@ def load_datasets_list(args):
         if args.data_type!="all":
             args.data_type = [args.data_type]
     datasets_list = []
-    for i,f in enumerate(os.scandir(r"./data/singleCell/")):
-        if f.name == 'features.csv' or "-adt" in f.name :
+    # for i,f in enumerate(os.scandir(r"./data/singleCell/")):
+    for i,f in enumerate(os.scandir(r"./data/scnym_data/")):
+        if f.name == 'features.csv' or "-adt" in f.name:
             continue
         if args.data_type == "all" or f.name[:-5] in args.data_type:
             datasets_list.append(f)
-                
+    
+
+
     return datasets_list
 
 
@@ -215,7 +222,7 @@ def load_weights(data,device,base = "",only_g=False):
             cls = None
         else:
             print(f"Loading pre-trained weights for {base} classifier")
-            cls = torch.load(f"./weights/{data.data_name}/{base_print}cls.pt")#.to(device)
+            cls = torch.load(f"./weights/{data.data_name}/{base_print}cls.pt").to(device)
         print(f"Loading pre-trained weights for {base} G model")
         g_model = torch.load(f"./weights/{data.data_name}/{base_print}g.pt").to(device)
     return cls,g_model
@@ -267,4 +274,46 @@ def get_tree_explaination(data):
         rf_important = pd.concat([rf_important,sample_important],axis=1)
     return rf_important
 
+
              
+def get_best_features(data_inst,n_features = 2000):
+        data_name = data_inst.name[:-5]
+
+        full_data = sc.read(data_inst.path)
+        if data_name == "kang_2017_stim_pbmc":
+            labels_by = "cell"
+        elif data_name == "mouse_cortex_methods_comparison_log1p_cpm":
+            labels_by = "CellType"
+        else:
+            labels_by = "cell_type_l2"#"cell_ontology_class"
+
+        if (type(full_data.X) == csc_matrix) | (type(full_data.X) == csr_matrix):
+            data = full_data[:, full_data.var.index]
+            data = pd.DataFrame.sparse.from_spmatrix(data.X)
+            # data = data[:full_data.obs[labels_by].shape[0]//8]
+        else:
+            data = full_data[:, full_data.var.index]
+            data = pd.DataFrame(data.X.toarray())
+            # data = data.values[:full_data.obs[labels_by].shape[0]//8]
+        
+        
+        named_labels = full_data.obs[labels_by]#[:full_data.obs[labels_by].shape[0]//8]
+
+
+
+        if data_name=="su_2020":
+            data = data[:full_data.obs[labels_by].shape[0]//8]
+            named_labels = full_data.obs[labels_by][:full_data.obs[labels_by].shape[0]//8]
+            # return []
+        
+        index = full_data.var.index
+        del full_data
+        print(f" Filtering {data.shape[1]} features to {n_features} features || {data.shape[0]} samples || {np.unique(named_labels.values).shape[0]} labels")
+        
+        
+
+
+        transform = SelectKBest(chi2, k=n_features)
+        _ = transform.fit_transform(data.values, named_labels)
+        new_feat = transform.get_feature_names_out(index)
+        return new_feat

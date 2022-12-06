@@ -6,16 +6,16 @@ import pandas as pd
 import torch
 import wandb
 from data_loading import Data
-from test import test,test_xgb
-from train import train_G, train_classifier,train_xgb,train_H,train_f2,train_random_forest
-from utils import get_mask, get_mask_and_mult,init_models,features_f_corelation,load_datasets_list,save_weights,load_weights,concat_average_dfs
+from test import test,test_xgb,test_rf
+from train import train_G, train_classifier,train_xgb,train_H,train_random_forest
+from utils import get_mask, get_mask_and_mult,init_models,load_datasets_list,save_weights,load_weights,concat_average_dfs,get_best_features
 from visualization import visulaize_tsne, visulaize_umap
 import os
 import copy
 import joblib
 import xgboost as xgb
 import gseapy as gp
-from data_loading import Data
+from data_loading import Data,NymData
 from time import time
 import datetime
 from torch.utils.data import DataLoader
@@ -54,7 +54,8 @@ def run_train(args,device):
             res_dict = {}
             res_prints = ""
             iter_time = time()
-            data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
+            # data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
+            data = NymData(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False)
             print(f"Training iteration:{j} dataset:{data.data_name}")
             
             if args.working_models["F"] or args.working_models["g"]:
@@ -73,13 +74,13 @@ def run_train(args,device):
                 if args.save_weights:
                     save_weights(cls=cls,g=g_model,data=data)
 
-            args.batch_factor=1
-            args.weight_decay=5e-4
+            # args.batch_factor=1
+            # args.weight_decay=5e-4
             if args.working_models["H"]:
                 g_model_copy_h = copy.deepcopy(g_model)
                 h,g_model_copy_h,h_res_dict = train_H(args,device,data_obj=data,g_model=g_model_copy_h,wandb_exp=None,model=None,train_H=True)
                 res_dict.update(h_res_dict)
-                res_prints+="\nF2_c Resutls\n"
+                res_prints+="\nH Resutls\n"
                 res_prints+=str(h_res_dict)
                 if args.save_weights:
                     save_weights(cls=h,g=g_model_copy_h,data=data,base="H")
@@ -91,6 +92,16 @@ def run_train(args,device):
                 res_prints+=str(f2_res_dict)
                 if args.save_weights:
                     save_weights(cls=f2,g=g_model_copy_f2,data=data,base="F2")
+
+            # if args.working_models["F2"]:
+            #     _,g_model_copy_f2 = init_models(args=args,data=data,device=device)
+            #     f2,g_model_copy_f2,f2_res_dict = train_H(args,device,data_obj=data,g_model=g_model_copy_f2,wandb_exp=None,model=None,train_H=False)
+            #     res_dict.update(f2_res_dict)
+            #     res_prints+="\nF2_new Resutls\n"
+            #     res_prints+=str(f2_res_dict)
+            #     if args.save_weights:
+            #         save_weights(cls=f2,g=g_model_copy_f2,data=data,base="F2")
+
 
             if args.working_models["XGB"]:
                 xgb_cls,xgb_res_dict = train_xgb(data,device)
@@ -107,6 +118,7 @@ def run_train(args,device):
                 res_prints+=str(rf_res_dict)
                 if args.save_weights:
                     save_weights(cls=rf_cls,g=None,data=data,base="RF")
+                
 
 
             print(f"############### Results on {data.data_name} ############################")
@@ -374,23 +386,35 @@ def run_per_sample_gsea_compare(args,device):
     device
 
     """
+    args_copy = copy.copy(args)
+    args_copy.data_type = "kotliarov_2020"
+    base_list = load_datasets_list(args_copy)
+    base_data = Data(data_inst=base_list[0],train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True)
+
+
+
+
+
+
     datasets_list = load_datasets_list(args)
     stat_df = pd.DataFrame(columns=["Data","Our mean","RF mean","XGB mean","Our std","RF std","XGB std","Our var","RF var","XGB var","RF T-test","RF P-value","XGB T-test","XGB P-value"])
     cols = ["Sample","y","Our nes","RF nes","XGB nes","Our pval","RF pval","XGB pval","Our fdr","RF fdr","XGB fdr"]
     global_time = time()
     for i,f in enumerate(datasets_list):
+        if f.name[:-5]!="hao_2020" and f.name[:-5]!="10X_pbmc_10k":
+            continue
         dataset_time = time()
             
         results_df = pd.DataFrame(columns=cols)
         print(f"\n### Starting work on {f.name[:-5]} ###")
-        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
-        _,g = load_weights(data,device,"H",only_g=True)
-        rf_model,_ = load_weights(data,device,"RF",only_g=True)
-        xgb_cls,_ = load_weights(data,device,"XGB",only_g=True)
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True,feat_list=base_data.colnames)
+        _,g = load_weights(base_data,device,"F2_c",only_g=True)
+        rf_model,_ = load_weights(base_data,device,"RF",only_g=True)
+        xgb_cls,_ = load_weights(base_data,device,"XGB",only_g=True)
 
 
-        number_of_random_samples = 100 if data.all_dataset.X_data.shape[0]>100 else data.all_dataset.X_data.shape[0]
-        random_samples =np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples)  
+        number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>100 else data.all_dataset.X_data.shape[0]
+        random_samples = np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples)  
         for j,sample in enumerate(random_samples):
             print(f"\rRunning GSEA on sample {j+1}/{number_of_random_samples}")
             with torch.no_grad():
@@ -487,21 +511,32 @@ def run_per_sample_gsea(args,device):
     device
 
     """
+
+    args_copy = copy.copy(args)
+    args_copy.data_type = "kotliarov_2020"
+    base_list = load_datasets_list(args_copy)
+    base_data = Data(data_inst=base_list[0],train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True)
+
+
+
+
     datasets_list = load_datasets_list(args)
     cols = ["Sample","y","nes","pval","fdr"]
     stat_df =pd.DataFrame(columns=["data","model","Our mean","Our std","Our var"])
     global_time = time()
     for i,f in enumerate(datasets_list):
+        if f.name[:-5]!="kotliarov_2020" and f.name[:-5]!="hao_2020":
+            continue
         dataset_time = time()
             
         results_df = pd.DataFrame(columns=cols)
         print(f"\n### Starting work on {f.name[:-5]} ###")
-        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=False,test_set=True)
+        data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True,feat_list=base_data.colnames)
         number_of_random_samples = 1000 if data.all_dataset.X_data.shape[0]>1000 else data.all_dataset.X_data.shape[0]
-        random_samples =np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples) 
+        random_samples = np.random.random_integers(0,data.all_dataset.X_data.shape[0]-1,size=number_of_random_samples) #list(range(data.all_dataset.X_data.shape[0]))#
         for mod in ["G","F2","F2_c"]:
             base_print = "" if mod =="G" else mod
-            _,g = load_weights(data,device,base_print,only_g=True)
+            _,g = load_weights(base_data,device,base_print,only_g=True)
 
             for j,sample in enumerate(random_samples):
                 print(f"\rRunning GSEA on sample {j+1}/{number_of_random_samples}")
@@ -545,4 +580,118 @@ def run_per_sample_gsea(args,device):
     stat_df.to_csv(f'./results/prerank/stst_res_ablation.csv',index=False)
     
     print(f"#################################")  
+
+
+
+def run_global_feature_selection(args,device):
+    datasets_list = load_datasets_list(args)
+    feat_list = []
+    print(f"\n### Searching features ###")
+    global_time = time()
+    for i,f in enumerate(datasets_list):
+        dataset_time = time()
+        print(f"\n### Starting work on {f.name[:-5]} || {i+1}/{len(datasets_list)}###")
+        f_best = get_best_features(f)
+        feat_list.append(f_best)
+
+        # if i==0:
+        #     inter_vector = copy.copy(f_best)
+        # else:
+        #     inter_vector = np.intersect1d(inter_vector,f_best)
+        if i==0:
+            features_df = pd.DataFrame(f_best,columns=[f.name[:-5]])
+        else:
+            current_features_df = pd.DataFrame(f_best,columns=[f.name[:-5]])
+            features_df = pd.concat([features_df,current_features_df],axis=1)
+        
+        time_diff = datetime.timedelta(seconds=time()-dataset_time)
+        print("Working on {}:took {}".format(f.name[:-5],time_diff))
+    time_diff = datetime.timedelta(seconds=time()-global_time)
+    print("Total time took {}".format(time_diff))
+
+    features_df.to_csv(r"./data/our_features.csv")
+    
+
+    inter_mat = np.zeros((len(datasets_list),len(datasets_list)))-1
+    for i in range(len(datasets_list)):
+        for j in range(len(datasets_list)):
+            if i!=j:
+                inter_mat[i,j] = len(np.intersect1d(feat_list[i],feat_list[j]))
+    print(inter_mat)
+    print()
+
+
+
+
+
+
+def run_test(args,device):
+    """
+
+
+    Arguments:
+    args [obj] - Arguments
+    device
+
+    """
+    time_for_file = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+    args_copy = copy.copy(args)
+    args_copy.data_type = "rat_aging_cell_atlas_ma_2020"
+    base_list = load_datasets_list(args_copy)
+    datasets_list = load_datasets_list(args)
+    first_data_set = True
+    res_dict = {}
+    
+    # base_data = Data(data_inst=base_list[0],train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True)
+    base_data = NymData(data_inst=base_list[0],train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True)
+    for i,f in enumerate(datasets_list):
+        res_prints = ""
+        # data = Data(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True,feat_list=base_data.colnames)
+        data = NymData(data_inst=f,train_ratio=args.train_ratio,features=True,all_labels=True,test_set=True)
+        if len(base_data.colnames)!= len(data.colnames):
+            print(f"Dataset:{data.data_name} have different features")
+            continue 
+        if not (base_data.colnames==data.colnames).all():
+            print(f"Dataset:{data.data_name} have different features")
+            continue
+        # if base_data.data_name==data.data_name:
+        #     continue
+        # if "su_2020"==data.data_name:
+        #     continue
+        for mod in ["G","F2","H"]:#,"XGB","RF"]:
+            base_print = "" if mod =="G" else mod
+            cls,g_model = init_models(args=args,data=base_data,device=device,base=base_print)
+
+            print(f"Testing {mod} dataset:{data.data_name}")
+            if mod == "XGB":
+                res = test_xgb(cls,data,device)
+            elif mod =="RF":
+                res = test_rf(cls,data,device)
+            else:
+                test_H = True if mod=="H" else False
+                res = test(cls,g_model,device,data,test_H=test_H,model_name=mod)
+            
+            res_dict.update(res)
+            res_prints+=f"\n{mod} Resutls\n"
+            res_prints+=str(res)
+
+        print(f"############### Results on {data.data_name} ############################")
+        print(res_prints)
+        print(f"#####################################################################")   
+
+        single_data_res_df = pd.DataFrame(res_dict, index=[data.data_name])
+
+        if first_data_set:
+            full_resutls_df = single_data_res_df
+            first_data_set = False
+            
+        else:
+            full_resutls_df = pd.concat([full_resutls_df, single_data_res_df])
+    
+
+    full_resutls_df.to_csv(f"./results/{time_for_file}_{base_data.data_name}_croosdata_res_df.csv")
+
+
+
+
     
